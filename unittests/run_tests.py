@@ -1,11 +1,10 @@
 import unittest
-from test_bhPop import * 
-from test_dataLoaders import * 
-from test_mortality import *
-from test_infPop import *
-from test_covSimInterventions import *
-from test_covMultiSim import *
-from test_covVariantsSim import *
+import test_bhPop as t1
+import test_dataLoaders as t2
+import test_infPop as t3
+import test_mortality as t4
+import test_covSimInterventions as t5 
+import test_covVariantsSim as t6
 
 #To run ALL unittests:
 #python run_tests.py
@@ -14,6 +13,7 @@ from test_covVariantsSim import *
 #python unittest_file.py
 
 disable_warnings = True
+generate_baselines = False
 
 def all_tests():
      
@@ -24,30 +24,38 @@ def all_tests():
     suite = unittest.TestSuite()
 
     #test generation of behaviour pop
-    suite.addTest(test_bhPop('test_simplePop'))
+    suite.addTest(t1.test_bhPop('test_simplePop'))
 
     #test loading of country households data
-    suite.addTest(test_DataLoaders('test_country_households'))
+    suite.addTest(t2.test_DataLoaders('test_country_households'))
     
     #test initialization of infection module population from behaviour population
-    suite.addTest(test_infPop('test_different_pop_types'))
+    suite.addTest(t3.test_infPop('test_different_pop_types'))
 
     #test simulations with very high or very low disease probability
-    suite.addTest(test_diseaseMortalityTests_COVID('test_default_death_prob_one')) 
-    suite.addTest(test_diseaseMortalityTests_COVID('test_default_death_prob_zero'))
+    suite.addTest(t4.test_diseaseMortalityTests_COVID('test_default_death_prob_one')) 
+    suite.addTest(t4.test_diseaseMortalityTests_COVID('test_default_death_prob_zero'))
 
     #test simulations with different variants and custom variants with differing parameters
-    suite.addTest(test_covVariantsSim('test_oneVariant'))
-    suite.addTest(test_covVariantsSim('test_multiVariants'))
+    suite.addTest(t6.test_covVariantsSim('test_oneVariant'))
+    suite.addTest(t6.test_covVariantsSim('test_multiVariants'))
     
     #test simulations with basic interventions (contact tracing, testing, vaccination, change_beta)
-    suite.addTest(test_covSimWithInterventions('test_interventions'))
-
-    #test multi simulations
-    suite.addTest(test_covMultiSim('test_multiSim'))
+    suite.addTest(t5.test_covSimWithInterventions('test_changeBeta'))
+    suite.addTest(t5.test_covSimWithInterventions('test_vaccinateNumAndBoosters'))
+     
      
     return suite
 
 if __name__ == '__main__': 
-    runner = unittest.TextTestRunner()
-    runner.run(all_tests())
+
+    if(not generate_baselines):
+        runner = unittest.TextTestRunner()
+        runner.run(all_tests())
+    else:
+        print("Generating baseline files for all unittests which require one")
+         
+        t1.generate_baseline() 
+        t3.generate_baseline()
+        t5.generate_baseline() 
+        t6.generate_baseline()

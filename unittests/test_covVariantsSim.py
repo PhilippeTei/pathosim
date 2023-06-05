@@ -14,11 +14,13 @@ simPars = {
             'n_days': 120,
             'pop_infected': 20,
             'rand_seed' : 0,
-            'verbose':0
+            'verbose':0,
+            'enable_vl':True
         }
 
 result_keys = [ 
-    'n_infectious',   
+    'n_infectious',  
+    'n_symptomatic', 
     'n_severe',       
     'n_recovered',   
     'n_dead']
