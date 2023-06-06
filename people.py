@@ -16,7 +16,7 @@ from . import base as cvb
 from . import plotting as cvplt
 from . import immunity as cvi
 from . import watches as cvw
-
+from . import pathogens as pat
 
 __all__ = ['People']
 

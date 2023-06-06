@@ -16,6 +16,7 @@ from . import base as cvb
 from . import defaults as cvd
 from . import parameters as cvpar
 from . import immunity as cvi
+from . import pathogens as pat 
 from collections import defaultdict
 
 

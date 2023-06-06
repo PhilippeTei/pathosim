@@ -26,6 +26,7 @@ from . import behaviour_model as cvbm
 from . import background_ILI as bkg_ILI
 from . import symptoms as symptoms
 from . import people as cvppl
+from . import pathogens as pat
 from .settings import options as cvo
 
 # Almost everything in this file is contained in the Sim class
@@ -605,7 +606,7 @@ class Sim(cvb.BaseSim):
             self['variants'] = self._orig_pars.pop('variants') # Restore
 
         for i,variant in enumerate(self['variants']):
-            if isinstance(variant, cvimm.variant):
+            if isinstance(variant, pat.Pathogen.Variant):
                 if not variant.initialized:
                     variant.initialize(self)
             else: # pragma: no cover
@@ -749,7 +750,7 @@ class Sim(cvb.BaseSim):
 
         # Add variants
         for variant in self['variants']:
-            if isinstance(variant, cvimm.variant):
+            if isinstance(variant, pat.Pathogen.Variant):
                 variant.apply(self)
 
         # Sent smartwatch alerts and update alert histories

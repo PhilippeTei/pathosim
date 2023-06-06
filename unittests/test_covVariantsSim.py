@@ -28,7 +28,7 @@ result_keys = [
 class test_covVariantsSim(unittest.TestCase):
     
     def test_oneVariant(self): 
-        alpha  = inf.variant('alpha', days=5, n_imports=10)  
+        alpha  = inf.Pathogen.Variant('alpha', days=5, n_imports=10)  
         
         sim = inf.Sim(simPars, variants=[alpha]) 
         sim.run()
@@ -38,10 +38,10 @@ class test_covVariantsSim(unittest.TestCase):
             self.assertEqual(True if expected_result==sim.results[k] else False, True)
     
     def test_multiVariants(self): 
-        alpha  = inf.variant('alpha', days=0, n_imports=10)
-        beta   = inf.variant('beta', days=10, n_imports=10)
-        omicron   = inf.variant('omicron', days=30, n_imports=15)
-        custom = inf.variant(label='3x more transmissible', variant={'rel_beta': 3.0}, days=60, n_imports=20)
+        alpha  = inf.Pathogen.Variant('alpha', days=0, n_imports=10)
+        beta   = inf.Pathogen.Variant('beta', days=10, n_imports=10)
+        omicron   = inf.Pathogen.Variant('omicron', days=30, n_imports=15)
+        custom = inf.Pathogen.Variant(label='3x more transmissible', variant={'rel_beta': 3.0}, days=60, n_imports=20)
         
         sim = inf.Sim(simPars, variants=[alpha, beta, omicron, custom]) 
         sim.run()
@@ -54,7 +54,7 @@ class test_covVariantsSim(unittest.TestCase):
 
 def generate_baseline():
     
-    alpha  = inf.variant('alpha', days=5, n_imports=10)
+    alpha  = inf.Pathogen.Variant('alpha', days=5, n_imports=10)
     
     sim = inf.Sim(simPars, variants=[alpha]) 
     sim.run() 
@@ -63,10 +63,10 @@ def generate_baseline():
         sc.saveobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline', sim.results[k]) 
         
 
-    alpha  = inf.variant('alpha', days=0, n_imports=10)
-    beta   = inf.variant('beta', days=10, n_imports=10)
-    omicron   = inf.variant('omicron', days=30, n_imports=15)
-    custom = inf.variant(label='3x more transmissible', variant={'rel_beta': 3.0}, days=60, n_imports=20)
+    alpha  = inf.Pathogen.Variant('alpha', days=0, n_imports=10)
+    beta   = inf.Pathogen.Variant('beta', days=10, n_imports=10)
+    omicron   = inf.Pathogen.Variant('omicron', days=30, n_imports=15)
+    custom = inf.Pathogen.Variant(label='3x more transmissible', variant={'rel_beta': 3.0}, days=60, n_imports=20)
         
     sim = inf.Sim(simPars, variants=[alpha, beta, omicron, custom]) 
     sim.run() 
