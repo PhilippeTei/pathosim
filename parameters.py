@@ -7,6 +7,7 @@ import sciris as sc
 from .settings import options as cvo # For setting global options
 from . import misc as cvm
 from . import defaults as cvd
+from . import pathogens as pat
 
 __all__ = ['make_pars', 'reset_layer_pars', 'get_prognoses', 'get_variant_choices', 'get_vaccine_choices',
            'get_variant_pars', 'get_cross_immunity', 'get_vaccine_variant_pars', 'get_vaccine_dose_pars']
@@ -30,6 +31,11 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     '''
     pars = {}
 
+    #Multi-pathogen
+    #pars['pathogens'] = pat.Pathogen('SARS-CoV-2')
+    pars['n_pathogens'] = 1 #Number of pathogens circulating in the simulation
+
+    #----------------- ADDITIONAL MODULES (not in baseline multi-pathogen sim)-----------------#
     # Multi-region
     pars['enable_multiregion'] = False
     pars['multiregion'] = None
@@ -46,6 +52,10 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     pars['enable_testobjs'] = False 
     pars['testobjs'] = None  # This naming convention is possibly ambiguous - do NOT supply actually test objects (do that for pars['testing'])
 
+    #------------------------------------------------------------------------------------------#
+   
+   
+    #--------------------------- POPULATION & CONTACTS PARAMETERS------------------------------#
     # Population parameters
     pars['pop_size']     = 20e3     # Number of agents, i.e., people susceptible to SARS-CoV-2
     pars['pop_infected'] = 20       # Number of initial infections
@@ -73,30 +83,24 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     pars['dynam_layer']     = None  # Which layers are dynamic; set by reset_layer_pars() below
     pars['beta_layer']      = None  # Transmissibility per layer; set by reset_layer_pars() below
 
+    #-------------------------------------------------------------------------------------------#
+    
+    pars['enable_vl']    = True # Specifies whether we should use the updated viral load calculation; False = use native calculation 
+    pars['use_waning']   = True # Whether to use dynamically calculated immunity
+
+    #--------------------------PATHOGEN SPECIFIC PARAMETERS-------------------------------------# TODO put that in the pathogen class
     # Basic disease transmission parameters
     pars['beta_dist']    = dict(dist='neg_binomial', par1=1.0, par2=0.45, step=0.01) # Distribution to draw individual level transmissibility; dispersion from https://www.researchsquare.com/article/rs-29548/v1
     pars['viral_dist']   = dict(frac_time=0.3, load_ratio=2, high_cap=4) # The time varying viral load (transmissibility); estimated from Lescure 2020, Lancet, https://doi.org/10.1016/S1473-3099(20)30200-0
     pars['beta']         = 0.016  # Beta per symptomatic contact; absolute value, calibrated
     pars['asymp_factor'] = 1.0  # Multiply beta by this factor for asymptomatic cases; no statistically significant difference in transmissibility: https://www.sciencedirect.com/science/article/pii/S1201971220302502
-    pars['enable_vl']    = False # Specifies whether we should use the updated viral load calculation; False = use native calculation
     pars['viral_levels'] = dict(min_vl=0.75, max_vl=2) # Specifies the range within which viral load should be scaled so it can contribute to relative transmissibility
-    # # Below is used for tracking and testing. Doesn't work for non-default population sizes.
-    # pars['vl_trajs'] = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['x_p1']     = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['x_p_inf']  = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['x_p2']     = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['x_p3']     = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['y_p1']     = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['y_p_inf']  = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['y_p2']     = np.zeros((int(pars['pop_size']), pars['n_days']))
-    # pars['y_p3']     = np.zeros((int(pars['pop_size']), pars['n_days']))
 
     # Parameters that control settings and defaults for multi-variant runs
     pars['n_imports']  = 0 # Average daily number of imported cases (actual number is drawn from Poisson distribution)
     pars['n_variants'] = 1 # The number of variants circulating in the population
 
     # Parameters used to calculate immunity
-    pars['use_waning']   = True # Whether to use dynamically calculated immunity
     pars['nab_init']     = dict(dist='normal', par1=0, par2=2)  # Parameters for the distribution of the initial level of log2(nab) following natural infection, taken from fig1b of https://doi.org/10.1101/2021.03.09.21252641
     pars['nab_decay']    = dict(form='nab_growth_decay', growth_time=21, decay_rate1=np.log(2) / 50, decay_time1=150, decay_rate2=np.log(2) / 250, decay_time2=365)
     pars['nab_kin']      = None # Constructed during sim initialization using the nab_decay parameters

@@ -91,10 +91,28 @@ class People(cvb.BasePeople):
             else:
                 self[key] = np.full(self.pars['pop_size'], np.nan, dtype=cvd.default_float)
 
-        # Set health states -- only susceptible is true by default -- booleans except exposed by variant which should return the variant that ind is exposed to
+        # Set health states -- only susceptible is true by default -- booleans except exposed by variant which should return the variant that ind is exposed to   
         for key in self.meta.states:
             val = (key in ['susceptible', 'naive']) # Default value is True for susceptible and naive, False otherwise
             self[key] = np.full(self.pars['pop_size'], val, dtype=bool)
+
+        #Set pathogen specific states    self[key][pathogen_index][personID]             #NEW 
+        for key in self.meta.pathogen_states: 
+            val = (key in ['p_susceptible', 'p_naive']) # Default value is True for susceptible and naive, False otherwise 
+            self[key] = np.full((pars['n_pathogens'], self.pars['pop_size']), val, dtype = bool)
+
+        #Set pathogen variant state, which store info about which variant a person is exposed to   #NEW
+        for key in self.meta.pathogen_variants:
+            opt = (key in ['p_exposed_variant','p_infectious_variant','p_recovered_variant'])
+
+            if opt: 
+                self[key] = np.full((pars['n_pathogens'],self.pars['pop_size']), np.nan, dtype=cvd.default_float) #self[key][pathogen_index][personID]
+            else: 
+
+                #for i in range(pars['n_pathogens']):
+                    #change this to use n_variants for pathogen i!!
+                self[key]=np.full((self.pars['n_variants'], self.pars['pop_size']), False, dtype=bool) #self[key_(pathogen_index)][][variant_index][personID]
+
 
         # Set variant states, which store info about which variant a person is exposed to
         for key in self.meta.variant_states:
@@ -112,6 +130,9 @@ class People(cvb.BasePeople):
             self[key] = np.zeros(self.pars['pop_size'], dtype=cvd.default_int)
 
         # Set dates and durations -- both floats
+        for key in self.meta.pathogen_dates:
+            self[key] = np.full((pars['n_pathogens'], self.pars['pop_size']), np.nan, dtype=cvd.default_float) #NEW
+
         for key in self.meta.dates + self.meta.durs:
             self[key] = np.full(self.pars['pop_size'], np.nan, dtype=cvd.default_float)
 

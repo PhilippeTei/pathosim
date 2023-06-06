@@ -97,7 +97,9 @@ class Sim(cvb.BaseSim):
         elif (pars is not None):
             # Otherwise ignore these passed parameters when doing update_pars
             pars.pop('behaviour_pars', None)
-
+            
+        if self.pars['n_pathogens']:
+            self.n_pathogens = self.pars['n_pathogens']  
         # Now update everything
         self.set_metadata(simfile) # Set the simulation date and filename
         self.update_pars(pars, **kwargs) # Update the parameters, if provided
@@ -110,6 +112,7 @@ class Sim(cvb.BaseSim):
             self.rstarts = None
             self.process_multireg_pars()
             print("Multiregion is enabled!")
+
 
         # Process test object pars
         if self.pars['enable_testobjs']: 

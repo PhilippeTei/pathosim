@@ -9,7 +9,6 @@ __all__ = ['Pathogen']
 
 class Pathogen(sc.prettyobj):
     
-    
     class Variant(sc.prettyobj):
         '''
         Add a new variant to the sim

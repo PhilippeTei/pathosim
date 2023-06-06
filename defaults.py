@@ -6,6 +6,7 @@ To change the default precision from 32 bit (default) to 64 bit, use::
     cv.options.set(precision=64)
 '''
 
+from genericpath import samefile
 import numpy as np
 import numba as nb
 import sciris as sc
@@ -80,27 +81,56 @@ class PeopleMeta(sc.prettyobj):
             'alerted',       # Used to denote that a smartwatch alert was received on the current day; date_alerted refers to the date last alerted
         ]
 
-        # Variant states -- 1D array of the variant number that everyone's infected by.
+        #Pathogen states, each field is an array for each pathogen
+        self.pathogen_states = [
+            'p_susceptible',
+            'p_naive',
+            'p_exposed',
+            'p_infectious',
+            'p_symptomatic',
+            'p_severe',
+            'p_critical',
+            'p_tested',
+            'p_diagnosed',
+            'p_recovered',
+            'p_known_dead',
+            'p_dead',    
+        ]
+        
+        #Pathogen variants states, each field is an array for each pathogen
+        self.pathogen_variants =[
+            'p_exposed_variant', #2D array of the variant number (of that pathogen) that everyone's infected by. For 10 ppl: [0,1,0,1,1,0,2,0,0,3]
+            'p_infectious_variant',
+            'p_recovered_variant',
+
+            'p_exposed_by_variant',# Variant states -- rows: variant, columns: True or False; pop_size columns.
+            'p_infectious_by_variant',# Variant states -- rows: variant, columns: True or False; pop_size columns.
+]
+
+
+        #TODO delete
+        # Variant states -- 1D array of the variant number that everyone's infected by. For 10 ppl: [0,1,0,1,1,0,2,0,0,3]
         self.variant_states = [
             'exposed_variant',
             'infectious_variant',
             'recovered_variant',
         ]
-
+        #TODO delete 
         # Variant states -- rows: variant, columns: True or False; pop_size columns. 
         self.by_variant_states = [
             'exposed_by_variant',
             'infectious_by_variant',
         ]
 
-        # Immune states, by variant
+         
+        # Immune states, by pathogen by variant
         self.imm_states = [
-            'sus_imm',  # Float, by variant
-            'symp_imm', # Float, by variant
-            'sev_imm',  # Float, by variant
+            'sus_imm',  # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
+            'symp_imm', # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
+            'sev_imm',  # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
         ]
 
-        # Neutralizing antibody states
+        # Neutralizing antibody states, 1D array of length: number of pathogens in simulation
         self.nab_states = [
             'peak_nab',    # Float, peak neutralization titre relative to convalescent plasma
             'nab',         # Float, current neutralization titre relative to convalescent plasma
@@ -117,7 +147,15 @@ class PeopleMeta(sc.prettyobj):
         self.dates = [f'date_{state}' for state in self.states] # Convert each state into a date
         self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive
         self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
+
+        
+        self.pathogen_dates = [f'pathogen_date_{state}' for state in self.pathogen_states] # Convert each state into a date, arrays of NxP where N is num of pathogen and P is num of people
+        #self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive
+        #self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
+
         # Duration of different states: these are floats per person -- used in people.py
+       
+       #each field is a 1D array of length: number of pathogens in simulation
         self.durs = [
             'dur_exp2inf',
             'dur_inf2sym',
@@ -126,7 +164,7 @@ class PeopleMeta(sc.prettyobj):
             'dur_disease',
         ]
 
-        # Timing of control points for viral load
+        # Timing of control points for viral load; each field is a 1D array of length: number of pathogens in simulation
         self.vl_points = [
             'x_p_inf',
             'y_p_inf',
@@ -138,11 +176,13 @@ class PeopleMeta(sc.prettyobj):
             'y_p3',
         ]
 
-        self.all_states = self.person + self.states + self.variant_states + self.by_variant_states + self.imm_states + self.nab_states + self.vacc_states + self.dates + self.durs + self.vl_points
+        #TODO rem variant_states and by_variant_states
+        self.all_states = self.person + self.states + self.pathogen_states + self.pathogen_variants+ self.variant_states + self.by_variant_states + self.imm_states + self.nab_states + self.vacc_states + self.dates+ self.pathogen_dates + self.durs + self.vl_points
 
-        # Validate
-        self.state_types = ['person', 'states', 'variant_states', 'by_variant_states', 'imm_states',
-                            'nab_states', 'vacc_states', 'dates', 'durs', 'all_states']
+        # Validate 
+        #TODO rem variant_states and by_variant_states
+        self.state_types = ['person', 'states','pathogen_states', 'pathogen_variants', 'variant_states', 'by_variant_states', 'imm_states',
+                            'nab_states', 'vacc_states', 'dates', 'pathogen_dates', 'durs', 'all_states']
         for state_type in self.state_types:
             states = getattr(self, state_type)
             n_states        = len(states)

@@ -16,7 +16,7 @@ vxbst = inf.vaccinate_num('pfizer',150, True,None, None)
  
 cb = inf.change_beta(days=40, changes=0.5) 
 
- 
+ #try test_num
 nc = inf.notify_contacts(trace_probs={'h': 1, 's': 0.2, 'w': 0.2, 'c': 0.03},
                                   trace_time={'h': 0, 's': 1, 'w': 1, 'c': 2})
 
