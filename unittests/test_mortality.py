@@ -16,6 +16,7 @@ class test_diseaseMortalityTests_COVID(unittest.TestCase):
         for key in ['rel_symp_prob', 'rel_severe_prob', 'rel_crit_prob', 'rel_death_prob']:
             sim[key] = 1e6
         sim.run()
+        #print(sim.people['n_infections'])
         assert sim.summary.cum_deaths == pop_size
          
 

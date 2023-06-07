@@ -149,7 +149,7 @@ class PeopleMeta(sc.prettyobj):
         self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
 
         
-        self.pathogen_dates = [f'pathogen_date_{state}' for state in self.pathogen_states] # Convert each state into a date, arrays of NxP where N is num of pathogen and P is num of people
+        self.pathogen_dates = [f'date_{state}' for state in self.pathogen_states] # Convert each state into a date, arrays of NxP where N is num of pathogen and P is num of people
         #self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive
         #self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
 
