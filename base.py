@@ -4,6 +4,7 @@ People and Sim classes (e.g. loading, saving, key lookups, etc.), so those class
 can be focused on the disease-specific functionality.
 '''
 
+from cmath import e
 import numpy as np
 import pandas as pd
 import sciris as sc
@@ -913,7 +914,7 @@ class BasePeople(FlexPretty):
             errormsg = f'The parameter "pop_size" must be included in a population; keys supplied were:\n{sc.newlinejoin(pars.keys())}'
             raise sc.KeyNotFoundError(errormsg)
         pars['pop_size'] = int(pars['pop_size'])
-        pars.setdefault('n_variants', 1)
+        #pars.setdefault('n_variants', 1)
         pars.setdefault('location', None)
         self.pars = pars # Actually store the pars
         return
@@ -951,28 +952,7 @@ class BasePeople(FlexPretty):
         if contact_layer_keys != layer_keys:
             errormsg = f'Parameters layers {layer_keys} are not consistent with contact layers {contact_layer_keys}'
             raise ValueError(errormsg)
-
-        # Check that the length of each array is consistent
-        expected_len = len(self)
-        expected_variants = self.pars['n_variants']
-        for key in self.keys():
-            if self[key].ndim == 1:
-                actual_len = len(self[key])
-            else: # If it's 2D, variants need to be checked separately
-                actual_variants, actual_len = self[key].shape
-                if actual_variants != expected_variants:
-                    if verbose:
-                        print(f'Resizing "{key}" from {actual_variants} to {expected_variants}')
-                    self._resize_arrays(keys=key, new_size=(expected_variants, expected_len))
-            if actual_len != expected_len: # pragma: no cover
-                if die:
-                    errormsg = f'Length of key "{key}" did not match population size ({actual_len} vs. {expected_len})'
-                    raise IndexError(errormsg)
-                else:
-                    if verbose:
-                        print(f'Resizing "{key}" from {actual_len} to {expected_len}')
-                    self._resize_arrays(keys=key)
-
+        
         # Check that the layers are valid
         for layer in self.contacts.values():
             layer.validate()
@@ -1120,6 +1100,10 @@ class BasePeople(FlexPretty):
     def true(self, key):
         ''' Return indices matching the condition '''
         return self[key].nonzero()[0]
+    
+    def true_with_index(self, key, index):
+        ''' Return indices matching the condition, for matrices (array[index][]) '''
+        return self[key][index].nonzero()[0]
 
 
     def false(self, key):
@@ -1142,9 +1126,9 @@ class BasePeople(FlexPretty):
         return np.count_nonzero(self[key])
 
 
-    def count_by_variant(self, key, variant):
+    def count_by_variant(self, key, variant, pathogen):
         ''' Count the number of people for a given key '''
-        return np.count_nonzero(self[key][variant,:])
+        return np.count_nonzero(self[key][pathogen,variant,:])
 
     def r_count(self, key, i_start, i_end):
         ''' Count the number of people for a given key in the half-open
@@ -1152,9 +1136,9 @@ class BasePeople(FlexPretty):
         return np.count_nonzero(self[key][i_start:i_end])
 
 
-    def r_count_by_variant(self, key, variant, i_start, i_end):
+    def r_count_by_variant(self, key, variant, i_start, i_end, pathogen):
         ''' Count the number of people for a given key. In a range, as above. '''
-        return np.count_nonzero(self[key][variant,i_start:i_end])
+        return np.count_nonzero(self[key][pathogen, variant,i_start:i_end])
 
 
     def count_not(self, key):
@@ -1182,9 +1166,9 @@ class BasePeople(FlexPretty):
         return self.meta.dates[:]
 
 
-    def dur_keys(self):
+    def dur_keys(self, pathogen = 0):
         ''' Returns keys for different durations (e.g., the duration from exposed to infectious) '''
-        return self.meta.durs[:]
+        return self.meta.durs[pathogen,:]
 
 
     def layer_keys(self):

@@ -145,7 +145,7 @@ def calc_VE_symp(nab, pars):
 
 # %% Immunity methods
 
-def init_immunity(sim, create=False):
+def init_immunity(sim, create=False, pathogen = 0):
     ''' Initialize immunity matrices with all variants that will eventually be in the sim'''
 
     # Don't use this function if immunity is turned off
@@ -153,7 +153,7 @@ def init_immunity(sim, create=False):
         return
 
     # Pull out all of the circulating variants for cross-immunity
-    nv = sim['n_variants']
+    nv = sim['n_variants'][pathogen]
 
     # If immunity values have been provided, process them
     if sim['immunity'] is None or create:
@@ -179,7 +179,7 @@ def init_immunity(sim, create=False):
     return
 
 
-def check_immunity(people, variant):
+def check_immunity(people, variant, pathogen):
     '''
     Calculate people's immunity on this timestep from prior infections + vaccination. Calculates effective NAbs by
     weighting individuals NAbs by source and then calculating efficacy.
@@ -197,13 +197,13 @@ def check_immunity(people, variant):
     nab_eff = pars['nab_eff']
     current_nabs = sc.dcp(people.nab)
     imm = np.ones(len(people))
-    date_rec = people.date_recovered  # Date recovered
+    date_rec = people.date_p_recovered[pathogen]  # Date recovered
     is_vacc = cvu.true(people.vaccinated)  # Vaccinated
     vacc_source = people.vaccine_source[is_vacc]
-    was_inf = cvu.true(people.t >= people.date_recovered)  # Had a previous exposure, now recovered
-    was_inf_same = cvu.true((people.recovered_variant == variant) & (people.t >= date_rec))  # Had a previous exposure to the same variant, now recovered
+    was_inf = cvu.true(people.t >= people.date_p_recovered[pathogen])  # Had a previous exposure, now recovered
+    was_inf_same = cvu.true((people.p_recovered_variant[pathogen] == variant) & (people.t >= date_rec))  # Had a previous exposure to the same variant, now recovered
     was_inf_diff = np.setdiff1d(was_inf, was_inf_same)  # Had a previous exposure to a different variant, now recovered
-    variant_was_inf_diff = people.recovered_variant[was_inf_diff]
+    variant_was_inf_diff = people.p_recovered_variant[pathogen, was_inf_diff]
     variant_was_inf_diff = variant_was_inf_diff.astype(cvd.default_int)
 
     imm[was_inf_same] = immunity[variant]

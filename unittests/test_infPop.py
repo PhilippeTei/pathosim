@@ -34,9 +34,17 @@ class test_infPop(unittest.TestCase):
         sim = inf.Sim(simPars, pop_type = poptype, people = pop, verbose = 0)
         sim.init_people()  
            
+        exceptions = [
+            'exposed_variant', 
+            'infectious_variant',
+            'recovered_variant',
+            'exposed_by_variant',
+            'infectious_by_variant']
+
         #check all keys are present
         for k in baseline_pars:
-            self.assertEqual(True if k in sim.people.pars else False, True)
+            if k not in exceptions:
+                self.assertEqual(True if k in sim.people.pars else False, True)
 
         #check some parameters
         self.assertEqual(True if np.array_equal(sim.people.pars['prognoses']['symp_probs'], baseline_pars['prognoses']['symp_probs']) else False, True)

@@ -98,7 +98,7 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
 
     # Parameters that control settings and defaults for multi-variant runs
     pars['n_imports']  = 0 # Average daily number of imported cases (actual number is drawn from Poisson distribution)
-    pars['n_variants'] = 1 # The number of variants circulating in the population
+    pars['n_variants'] = np.full(1,1,dtype = int) # The number of variants circulating in the population
 
     # Parameters used to calculate immunity
     pars['nab_init']     = dict(dist='normal', par1=0, par2=2)  # Parameters for the distribution of the initial level of log2(nab) following natural infection, taken from fig1b of https://doi.org/10.1101/2021.03.09.21252641

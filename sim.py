@@ -426,7 +426,7 @@ class Sim(cvb.BaseSim):
         self.results['cum_diagnoses_custom']      = init_res('Cumulative diagnoses with custom testing module')
 
         # Handle variants
-        nv = self['n_variants']
+        nv = self['n_variants'][0]
         self.results['variant'] = {}
         self.results['variant']['prevalence_by_variant'] = init_res('Prevalence by variant', scale=False, n_variants=nv)
         self.results['variant']['incidence_by_variant']  = init_res('Incidence by variant', scale=False, n_variants=nv)
@@ -604,7 +604,9 @@ class Sim(cvb.BaseSim):
 
 
     def init_variants(self):
-        ''' Initialize the variants '''
+        ''' Initialize the variants ''' 
+        self['n_variants'] = np.full(self.pars['n_pathogens'],1, dtype = int)
+
         if self._orig_pars and 'variants' in self._orig_pars:
             self['variants'] = self._orig_pars.pop('variants') # Restore
 
@@ -619,7 +621,7 @@ class Sim(cvb.BaseSim):
         len_pars = len(self['variant_pars'])
         len_map = len(self['variant_map'])
         assert len_pars == len_map, f"variant_pars and variant_map must be the same length, but they're not: {len_pars} ≠ {len_map}"
-        self['n_variants'] = len_pars # Each variant has an entry in variant_pars
+        self['n_variants'][0] = len_pars # Each variant has an entry in variant_pars
 
         return
 
@@ -631,7 +633,7 @@ class Sim(cvb.BaseSim):
         return
 
 
-    def init_infections(self, force=False, verbose=None):
+    def init_infections(self, force=False, verbose=None, pathogen = 0):
         '''
         Initialize prior immunity and seed infections.
 
@@ -668,7 +670,7 @@ class Sim(cvb.BaseSim):
                 reg_size = self.rsizes[i_reg]
                 # Choose, without replacement, the appropriate # people. Then, offset to get their actual UIDs. 
                 inds = cvu.choose(reg_size, regs2inf[reg]) + reg_start
-                self.people.infect(inds=inds, layer='seed_infection') # Not counted by results 
+                self.people.infect(inds=inds, layer='seed_infection', pathogen_index = pathogen) # Not counted by results 
                 i_reg += 1
         
         return
@@ -719,6 +721,9 @@ class Sim(cvb.BaseSim):
 
 
     def step(self):
+
+        #integrate this into some loop
+        current_pathogen = 0
         '''
         Step the simulation forward in time. Usually, the user would use sim.run()
         rather than calling sim.step() directly.
@@ -738,7 +743,8 @@ class Sim(cvb.BaseSim):
         self.rescale() # Check if we need to rescale
         people = self.people # Shorten this for later use
 
-        people.update_states_pre(t=t) # Update the state of everyone and count the flows. This isn't infecting people nor updating their SEIR's. The date of infection seems to be pre-assigned. 
+        #0 is placeholder
+        people.update_states_pre(t=t, pathogen = current_pathogen) # Update the state of everyone and count the flows. This isn't infecting people nor updating their SEIR's. The date of infection seems to be pre-assigned. 
         contacts = people.update_contacts() # Compute new contacts. For dynamic contacts. 
         hosp_max = people.count('severe')   > self['n_beds_hosp'] if self['n_beds_hosp'] is not None else False # Check for acute bed constraint
         icu_max  = people.count('critical') > self['n_beds_icu']  if self['n_beds_icu']  is not None else False # Check for ICU bed constraint
@@ -748,7 +754,7 @@ class Sim(cvb.BaseSim):
             n_imports = cvu.poisson(self['n_imports']/self.rescale_vec[self.t]) # Imported cases
             if n_imports>0:
                 importation_inds = cvu.choose(max_n=self['pop_size'], n=n_imports)
-                people.infect(inds=importation_inds, hosp_max=hosp_max, icu_max=icu_max, layer='importation')
+                people.infect(inds=importation_inds, hosp_max=hosp_max, icu_max=icu_max, layer='importation', pathogen_index = current_pathogen)
                 self.results['n_imports'][t] += n_imports
 
         # Add variants
@@ -820,6 +826,7 @@ class Sim(cvb.BaseSim):
                 # if testobj.name == 'PCR':
                 self.people.date_pos_test[testobj.date_pos_test == t] = t  # Update date_pos_test with people who received a test today that will return positive
                 self.people.date_diagnosed[testobj.date_positive == t] = t  # Update date_diagnosed with people who received at least one positive test today
+                self.people.date_p_diagnosed[current_pathogen, testobj.date_positive == t] = t  # Update date_diagnosed with people who received at least one positive test today
                 
                 # This is probably not the Covasim-standard implementation. 
                 self.results['new_diagnoses_custom'][t] += sum(testobj.date_positive == t)
@@ -834,10 +841,10 @@ class Sim(cvb.BaseSim):
             people.schedule_behaviour(self['behaviour_pars'])
 
         # Implement state changes relating to quarantine and isolation/diagnosis; compute associated statistics
-        people.update_states_post()
+        people.update_states_post(pathogen = 0)
 
         # Shorten useful parameters
-        nv = self['n_variants'] # Shorten number of variants
+        nv = self['n_variants'][0] # variants of CURRENT PATHOGEN
         sus = people.susceptible
         symp = people.symptomatic
         diag = people.diagnosed
@@ -850,7 +857,7 @@ class Sim(cvb.BaseSim):
 
             # Check immunity
             if self['use_waning']:
-                cvimm.check_immunity(people, variant)
+                cvimm.check_immunity(people, variant, current_pathogen)
 
             # Deal with variant parameters
             rel_beta = self['rel_beta']
@@ -866,7 +873,7 @@ class Sim(cvb.BaseSim):
                 betas = layer['beta']
 
                 # Compute relative transmission and susceptibility
-                inf_variant = people.infectious * (people.infectious_variant == variant) # TODO: move out of loop?
+                inf_variant = people.infectious * (people.p_infectious_variant[current_pathogen] == variant) # TODO: move out of loop?
                 sus_imm = people.sus_imm[variant,:]
                 iso_factor  = cvd.default_float(self['iso_factor'][lkey]) # Effect of isolating. 
                 quar_factor = cvd.default_float(self['quar_factor'][lkey]) # Ex: 0.2. Probably the effect on beta of quarantining. 
@@ -877,7 +884,7 @@ class Sim(cvb.BaseSim):
                 pairs = [[p1,p2]] if not self._legacy_trans else [[p1,p2], [p2,p1]] # Support slower legacy method of calculation, but by default skip this loop
                 for p1,p2 in pairs:
                     source_inds, target_inds = cvu.compute_infections(beta, p1, p2, betas, rel_trans, rel_sus, legacy=self._legacy_trans)  # Calculate transmission!
-                    people.infect(inds=target_inds, hosp_max=hosp_max, icu_max=icu_max, source=source_inds, layer=lkey, variant=variant)  # Actually infect people
+                    people.infect(inds=target_inds, hosp_max=hosp_max, icu_max=icu_max, source=source_inds, layer=lkey, variant=variant, pathogen_index = current_pathogen)  # Actually infect people
 
         ##### CALCULATE STATISTICS #####
 
@@ -887,7 +894,7 @@ class Sim(cvb.BaseSim):
 
         for key in cvd.result_stocks_by_variant.keys():
             for variant in range(nv):
-                self.results['variant'][f'n_{key}'][variant, t] = people.count_by_variant(key, variant)
+                self.results['variant'][f'n_{key}'][variant, t] = people.count_by_variant(f'p_{key}', variant, current_pathogen)
 
         # Update stock counts for multi-region.
         if self.pars['enable_multiregion']: self.update_results_mr(people)
@@ -925,9 +932,9 @@ class Sim(cvb.BaseSim):
             self.complete = True
         return
 
-    def update_results_mr(self, people):
+    def update_results_mr(self, people, pathogen = 0):
         t = self.t
-        nv = self['n_variants']
+        nv = self['n_variants'][pathogen]
 
         for rname, rstart, rsize in zip(self.rnames, self.rstarts, self.rsizes):
             for key in cvd.result_stocks.keys():
@@ -935,7 +942,7 @@ class Sim(cvb.BaseSim):
 
             for key in cvd.result_stocks_by_variant.keys():
                 for variant in range(nv):
-                    self.results['variant'][f'n_{key}'][variant, t] = people.r_count_by_variant(key, variant, rstart, rstart+rsize)
+                    self.results['variant'][f'n_{key}'][variant, t] = people.r_count_by_variant(f'p_{key}', variant, rstart, rstart+rsize, pathogen)
             # TODO: Update the flows. 
 
 
@@ -1074,6 +1081,7 @@ class Sim(cvb.BaseSim):
 
             # Do the heavy lifting -- actually run the model!
             self.step()
+            self.validate_people_states()
 
         # If simulation reached the end, finalize the results
         if self.complete:
@@ -1089,6 +1097,34 @@ class Sim(cvb.BaseSim):
 
         return self
 
+    def validate_people_states(self):
+        if self.pars['n_pathogens'] != 1:
+            return;
+          
+        assert np.array_equal(self.people.susceptible, self.people.p_susceptible[0])
+        assert np.array_equal(self.people.naive, self.people.p_naive[0])
+        assert np.array_equal(self.people.exposed, self.people.p_exposed[0])
+        assert np.array_equal(self.people.infectious, self.people.p_infectious[0])
+        assert np.array_equal(self.people.symptomatic, self.people.p_symptomatic[0])
+        assert np.array_equal(self.people.severe, self.people.p_severe[0])
+        assert np.array_equal(self.people.recovered, self.people.p_recovered[0])
+        assert np.array_equal(self.people.dead, self.people.p_dead[0])
+        #assert np.array_equal(self.people.diagnosed, self.people.p_diagnosed[0])
+        #assert np.array_equal(self.people.tested, self.people.p_tested[0]) 
+        #if(self.pars['n_variants'][0]>1 and self.complete): 
+        #    for i in range(len(self.people.infectious_variant)):
+         #       if self.people.infectious_variant[i] != self.people.p_infectious_variant[0,i]:
+          #          if(not np.isnan(self.people.infectious_variant[i]) or not  np.isnan(self.people.p_infectious_variant[0,i])):
+           #             assert np.array_equal(self.people.exposed_variant[i], self.people.p_exposed_variant[0,i])
+            #            assert np.array_equal(self.people.infectious_variant[i], self.people.p_infectious_variant[0,i])
+             #           assert np.array_equal(self.people.recovered_variant[i], self.people.p_recovered_variant[0,i]) 
+
+                
+            
+            #assert np.array_equal(self.people.exposed_by_variant, self.people.p_exposed_by_variant[0])
+            #assert np.array_equal(self.people.infectious_by_variant, self.people.p_infectious_by_variant[0])
+
+             
 
     def finalize(self, verbose=None, restore_pars=True):
         ''' Compute final results '''
@@ -1115,7 +1151,7 @@ class Sim(cvb.BaseSim):
         for key in cvd.result_flows.keys():
             self.results[f'cum_{key}'][:] = np.cumsum(self.results[f'new_{key}'][:], axis=0)
         for key in cvd.result_flows_by_variant.keys():
-            for variant in range(self['n_variants']):
+            for variant in range(self['n_variants'][0]):
                 self.results['variant'][f'cum_{key}'][variant, :] = np.cumsum(self.results['variant'][f'new_{key}'][variant, :], axis=0)
         for res in [self.results['cum_infections'], self.results['variant']['cum_infections_by_variant']]: # Include initially infected people
             res.values += self['pop_infected']*self.rescale_vec[0]

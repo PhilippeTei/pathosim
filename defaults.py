@@ -81,7 +81,7 @@ class PeopleMeta(sc.prettyobj):
             'alerted',       # Used to denote that a smartwatch alert was received on the current day; date_alerted refers to the date last alerted
         ]
 
-        #Pathogen states, each field is an array for each pathogen
+        #Pathogen states, each field is an array for each pathogen  
         self.pathogen_states = [
             'p_susceptible',
             'p_naive',
@@ -92,8 +92,7 @@ class PeopleMeta(sc.prettyobj):
             'p_critical',
             'p_tested',
             'p_diagnosed',
-            'p_recovered',
-            'p_known_dead',
+            'p_recovered', 
             'p_dead',    
         ]
         
@@ -108,22 +107,11 @@ class PeopleMeta(sc.prettyobj):
 ]
 
 
-        #TODO delete
-        # Variant states -- 1D array of the variant number that everyone's infected by. For 10 ppl: [0,1,0,1,1,0,2,0,0,3]
-        self.variant_states = [
-            'exposed_variant',
-            'infectious_variant',
-            'recovered_variant',
-        ]
-        #TODO delete 
-        # Variant states -- rows: variant, columns: True or False; pop_size columns. 
-        self.by_variant_states = [
-            'exposed_by_variant',
-            'infectious_by_variant',
-        ]
+      
 
          
         # Immune states, by pathogen by variant
+        ##TODO implement them so they are changed based on the date
         self.imm_states = [
             'sus_imm',  # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
             'symp_imm', # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
@@ -175,13 +163,11 @@ class PeopleMeta(sc.prettyobj):
             'x_p3',
             'y_p3',
         ]
-
-        #TODO rem variant_states and by_variant_states
-        self.all_states = self.person + self.states + self.pathogen_states + self.pathogen_variants+ self.variant_states + self.by_variant_states + self.imm_states + self.nab_states + self.vacc_states + self.dates+ self.pathogen_dates + self.durs + self.vl_points
+        
+        self.all_states = self.person + self.states + self.pathogen_states + self.pathogen_variants+ self.imm_states + self.nab_states + self.vacc_states + self.dates+ self.pathogen_dates + self.durs + self.vl_points
 
         # Validate 
-        #TODO rem variant_states and by_variant_states
-        self.state_types = ['person', 'states','pathogen_states', 'pathogen_variants', 'variant_states', 'by_variant_states', 'imm_states',
+        self.state_types = ['person', 'states','pathogen_states', 'pathogen_variants', 'imm_states',
                             'nab_states', 'vacc_states', 'dates', 'pathogen_dates', 'durs', 'all_states']
         for state_type in self.state_types:
             states = getattr(self, state_type)
