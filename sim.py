@@ -782,9 +782,9 @@ class Sim(cvb.BaseSim):
 
             viral_load = cvu.compute_viral_load_old(t, date_inf, date_rec, date_dead, frac_time, load_ratio, high_cap)
         else:
-            x_p1, y_p1 = people.x_p1, people.y_p1
-            x_p2, y_p2 = people.x_p2, people.y_p2
-            x_p3, y_p3 = people.x_p3, people.y_p3
+            x_p1, y_p1 = people.x_p1[current_pathogen], people.y_p1[current_pathogen]
+            x_p2, y_p2 = people.x_p2[current_pathogen], people.y_p2[current_pathogen]
+            x_p3, y_p3 = people.x_p3[current_pathogen], people.y_p3[current_pathogen]
             min_vl = cvd.default_float(self['viral_levels']['min_vl'])
             max_vl = cvd.default_float(self['viral_levels']['max_vl'])
 

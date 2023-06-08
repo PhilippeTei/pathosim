@@ -145,7 +145,7 @@ class People(cvb.BasePeople):
 
         # Set dates for viral load profile -- floats
         for key in self.meta.vl_points:
-            self[key] = np.full(self.pars['pop_size'], np.nan, dtype=cvd.default_float)
+            self[key] = np.full((self.pars['n_pathogens'],self.pars['pop_size']), np.nan, dtype=cvd.default_float)
 
         
      
@@ -1141,28 +1141,28 @@ class People(cvb.BasePeople):
         # HANDLE VIRAL LOAD CONTROL POINTS
         if self.pars['enable_vl']:
             # Get P_inf: where viral load crosses 10^6 cp/mL
-            self.x_p_inf[inds] = self.dur_exp2inf[pathogen_index, inds]
-            self.y_p_inf[inds] = 6
+            self.x_p_inf[pathogen_index,inds] = self.dur_exp2inf[pathogen_index, inds]
+            self.y_p_inf[pathogen_index,inds] = 6
 
             # Get P1: where viral load crosses 10^3 cp/mL; time difference obtained empirically through simulation
-            self.x_p1[inds] = np.maximum(self.x_p_inf[inds] - (np.random.gamma(2, 0.35, size=len(inds)) + 0.25), 0)
-            self.y_p1[inds] = 3
+            self.x_p1[pathogen_index,inds] = np.maximum(self.x_p_inf[pathogen_index,inds] - (np.random.gamma(2, 0.35, size=len(inds)) + 0.25), 0)
+            self.y_p1[pathogen_index,inds] = 3
 
             # Get P2: where viral load peaks; time difference obtained empirically through simulation
-            self.x_p2[inds] = self.x_p_inf[inds] + (np.random.gamma(3, 0.26, size=len(inds)) + 0.1)
-            self.y_p2[inds] = ((self.y_p_inf[inds] - self.y_p1[inds])*(self.x_p2[inds] - self.x_p1[inds])/(self.x_p_inf[inds] - self.x_p1[inds])) + self.y_p1[inds]
+            self.x_p2[pathogen_index,inds] = self.x_p_inf[pathogen_index,inds] + (np.random.gamma(3, 0.26, size=len(inds)) + 0.1)
+            self.y_p2[pathogen_index,inds] = ((self.y_p_inf[pathogen_index,inds] - self.y_p1[pathogen_index,inds])*(self.x_p2[pathogen_index,inds] - self.x_p1[pathogen_index,inds])/(self.x_p_inf[pathogen_index,inds] - self.x_p1[pathogen_index,inds])) + self.y_p1[pathogen_index,inds]
 
             # Align P1, P_inf, and P2 to current time
-            self.x_p1[inds] = self.x_p1[inds] + self.t
-            self.x_p_inf[inds] = self.x_p_inf[inds] + self.t
-            self.x_p2[inds] = self.x_p2[inds] + self.t
+            self.x_p1[pathogen_index,inds] = self.x_p1[pathogen_index,inds] + self.t
+            self.x_p_inf[pathogen_index,inds] = self.x_p_inf[pathogen_index,inds] + self.t
+            self.x_p2[pathogen_index,inds] = self.x_p2[pathogen_index,inds] + self.t
 
             # Get P3: where viral load drops below 10^6 cp/mL
             time_recovered = np.ones(len(self.date_p_recovered[pathogen_index]), dtype=cvd.default_float)*self.date_p_recovered[pathogen_index] # This is needed to make a copy
             inds_dead = ~np.isnan(self.date_dead)
             time_recovered[inds_dead] = self.date_dead[inds_dead]
-            self.x_p3[inds] = np.maximum(time_recovered[inds], self.x_p2[inds])
-            self.y_p3[inds] = 6
+            self.x_p3[pathogen_index,inds] = np.maximum(time_recovered[inds], self.x_p2[pathogen_index,inds])
+            self.y_p3[pathogen_index,inds] = 6
 
             # # For testing purposes
             # if self.t < self.pars['x_p1'].shape[1]:
