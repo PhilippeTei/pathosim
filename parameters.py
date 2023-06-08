@@ -89,6 +89,7 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     pars['use_waning']   = True # Whether to use dynamically calculated immunity
 
     #--------------------------PATHOGEN SPECIFIC PARAMETERS-------------------------------------# TODO put that in the pathogen class
+
     # Basic disease transmission parameters
     pars['beta_dist']    = dict(dist='neg_binomial', par1=1.0, par2=0.45, step=0.01) # Distribution to draw individual level transmissibility; dispersion from https://www.researchsquare.com/article/rs-29548/v1
     pars['viral_dist']   = dict(frac_time=0.3, load_ratio=2, high_cap=4) # The time varying viral load (transmissibility); estimated from Lescure 2020, Lancet, https://doi.org/10.1016/S1473-3099(20)30200-0
@@ -100,7 +101,8 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     pars['n_imports']  = 0 # Average daily number of imported cases (actual number is drawn from Poisson distribution)
     pars['n_variants'] = np.full(1,1,dtype = int) # The number of variants circulating in the population
 
-    # Parameters used to calculate immunity
+    # Parameters used to calculate immunity 
+    pars['use_nab_framework'] = True
     pars['nab_init']     = dict(dist='normal', par1=0, par2=2)  # Parameters for the distribution of the initial level of log2(nab) following natural infection, taken from fig1b of https://doi.org/10.1101/2021.03.09.21252641
     pars['nab_decay']    = dict(form='nab_growth_decay', growth_time=21, decay_rate1=np.log(2) / 50, decay_time1=150, decay_rate2=np.log(2) / 250, decay_time2=365)
     pars['nab_kin']      = None # Constructed during sim initialization using the nab_decay parameters

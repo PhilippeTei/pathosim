@@ -97,9 +97,8 @@ class Sim(cvb.BaseSim):
         elif (pars is not None):
             # Otherwise ignore these passed parameters when doing update_pars
             pars.pop('behaviour_pars', None)
-            
-        if self.pars['n_pathogens']:
-            self.n_pathogens = self.pars['n_pathogens']  
+             
+             
         # Now update everything
         self.set_metadata(simfile) # Set the simulation date and filename
         self.update_pars(pars, **kwargs) # Update the parameters, if provided
@@ -874,7 +873,7 @@ class Sim(cvb.BaseSim):
 
                 # Compute relative transmission and susceptibility
                 inf_variant = people.infectious * (people.p_infectious_variant[current_pathogen] == variant) # TODO: move out of loop?
-                sus_imm = people.sus_imm[variant,:]
+                sus_imm = people.sus_imm[current_pathogen,variant,:]
                 iso_factor  = cvd.default_float(self['iso_factor'][lkey]) # Effect of isolating. 
                 quar_factor = cvd.default_float(self['quar_factor'][lkey]) # Ex: 0.2. Probably the effect on beta of quarantining. 
                 beta_layer  = cvd.default_float(self['beta_layer'][lkey]) # A scalar; beta for the layer. Ex: 1.0. 
@@ -908,14 +907,14 @@ class Sim(cvb.BaseSim):
 
         # Update nab and immunity for this time step
         if self['use_waning']:
-            has_nabs = cvu.true(people.peak_nab)
+            has_nabs = cvu.true(people.peak_nab[current_pathogen])
             if len(has_nabs):
-                cvimm.update_nab(people, inds=has_nabs)
+                cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
 
         inds_alive = cvu.false(people.dead)
-        self.results['pop_nabs'][t]            = np.sum(people.nab[inds_alive[cvu.true(people.nab[inds_alive])]])/len(inds_alive)
-        self.results['pop_protection'][t]      = np.nanmean(people.sus_imm)
-        self.results['pop_symp_protection'][t] = np.nanmean(people.symp_imm)
+        self.results['pop_nabs'][t]            = np.sum(people.nab[current_pathogen, inds_alive[cvu.true(people.nab[current_pathogen, inds_alive])]])/len(inds_alive)
+        self.results['pop_protection'][t]      = np.nanmean(people.sus_imm[current_pathogen])
+        self.results['pop_symp_protection'][t] = np.nanmean(people.symp_imm[current_pathogen])
         
 
         # Calculate per-region statistics 

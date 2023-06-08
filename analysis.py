@@ -948,8 +948,8 @@ class nab_histogram(Analyzer):
 
 
     def apply(self, sim):
-        nonzero = sim.people.nab > 0
-        log_nabs = np.log10(sim.people.nab[nonzero])
+        nonzero = sim.people.nab[0] > 0 #TODO change 0 to account for all pathogens in sim
+        log_nabs = np.log10(sim.people.nab[0,nonzero])
         for ind in cvi.find_day(self.days, sim.t):
             date = self.dates[ind]  # Find the date for this index
             self.hists[date] = sc.objdict()  # Initialize the dictionary

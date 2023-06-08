@@ -74,6 +74,8 @@ class People(cvb.BasePeople):
         self.init_contacts() # Initialize the contacts
         self.infection_log = [] # Record of infections - keys for ['source','target','date','layer']
         self.stratifications = None # Gets updated in sim.py : initialize() 
+        
+        max_variants = np.max(self.pars['n_variants'])
 
         # Set person properties -- all floats except for UID
         for key in self.meta.person:
@@ -109,8 +111,7 @@ class People(cvb.BasePeople):
             if opt: 
                 self[key] = np.full((pars['n_pathogens'],self.pars['pop_size']), np.nan, dtype=cvd.default_float) #self[key][pathogen_index,personID]
             else:  
-                    #change this to use n_variants for pathogen i!!
-                max_variants = np.max(self.pars['n_variants'])
+                #change this to use n_variants for pathogen i!! 
                 self[key] = (np.full((pars['n_pathogens'], max_variants, self.pars['pop_size']), False, dtype=bool)) #self[key)][variant_index][personID]
 
 
@@ -122,10 +123,13 @@ class People(cvb.BasePeople):
 #
         # Set immunity and antibody states
         for key in self.meta.imm_states:  # Everyone starts out with no immunity
-            self[key] = np.zeros((self.pars['n_variants'][0], self.pars['pop_size']), dtype=cvd.default_float)
+            self[key] = np.zeros((self.pars['n_pathogens'], max_variants, self.pars['pop_size']), dtype=cvd.default_float)
+
         for key in self.meta.nab_states:  # Everyone starts out with no antibodies
             dtype = cvd.default_int if key == 't_nab_event' else cvd.default_float
-            self[key] = np.zeros(self.pars['pop_size'], dtype=dtype)
+            self[key] = np.zeros((self.pars['n_pathogens'],self.pars['pop_size']), dtype=dtype) #size is for all pathogens, but most indices wont be used if the param use_nab_framwork is False
+
+
         for key in self.meta.vacc_states:
             self[key] = np.zeros(self.pars['pop_size'], dtype=cvd.default_int)
 
@@ -916,9 +920,12 @@ class People(cvb.BasePeople):
         # Reset immunity and antibody states TODO change to multipathogen 
         non_vx_inds = inds if reset_vx else inds[~self['vaccinated'][inds]]
         for key in self.meta.imm_states:
-            self[key][:, non_vx_inds] = 0
-        for key in self.meta.nab_states + self.meta.vacc_states:
+            self[key][pathogen_index,:, non_vx_inds] = 0
+
+        for key in self.meta.vacc_states: 
             self[key][non_vx_inds] = 0
+        for key in self.meta.nab_states:
+            self[key][pathogen_index, non_vx_inds] = 0
 
         # Reset dates
         for key in self.meta.dates:
@@ -1009,7 +1016,7 @@ class People(cvb.BasePeople):
         durpars      = self.pars['dur']
 
         # Retrieve those with a breakthrough infection (defined nabs)
-        breakthrough_inds = inds[cvu.true(self.peak_nab[inds])]
+        breakthrough_inds = inds[cvu.true(self.peak_nab[pathogen_index,inds])]
         if len(breakthrough_inds):
             no_prior_breakthrough = (self.n_breakthroughs[pathogen_index, breakthrough_inds] == 0) # We only adjust transmissibility for the first breakthrough
             new_breakthrough_inds = breakthrough_inds[no_prior_breakthrough]
@@ -1063,7 +1070,7 @@ class People(cvb.BasePeople):
             self[key][pathogen_index, inds] = np.nan
 
         # Use prognosis probabilities to determine what happens to them
-        symp_probs = infect_pars['rel_symp_prob']*self.symp_prob[inds]*(1-self.symp_imm[variant, inds]) # Calculate their actual probability of being symptomatic
+        symp_probs = infect_pars['rel_symp_prob']*self.symp_prob[inds]*(1-self.symp_imm[pathogen_index,variant, inds]) # Calculate their actual probability of being symptomatic
         is_symp = cvu.binomial_arr(symp_probs) # Determine if they develop symptoms
         symp_inds = inds[is_symp]
         asymp_inds = inds[~is_symp] # Asymptomatic
@@ -1082,7 +1089,7 @@ class People(cvb.BasePeople):
         #TODO rem
         self.date_symptomatic[symp_inds] = self.date_infectious[symp_inds] + self.dur_inf2sym[pathogen_index, symp_inds] # Date they become symptomatic
         self.date_p_symptomatic[pathogen_index, symp_inds] = self.date_p_infectious[pathogen_index, symp_inds] + self.dur_inf2sym[pathogen_index, symp_inds] # Date they become symptomatic
-        sev_probs = infect_pars['rel_severe_prob'] * self.severe_prob[symp_inds]*(1-self.sev_imm[variant, symp_inds]) # Probability of these people being severe
+        sev_probs = infect_pars['rel_severe_prob'] * self.severe_prob[symp_inds]*(1-self.sev_imm[pathogen_index, variant, symp_inds]) # Probability of these people being severe
         is_sev = cvu.binomial_arr(sev_probs) # See if they're a severe or mild case
         sev_inds = symp_inds[is_sev]
         mild_inds = symp_inds[~is_sev] # Not severe

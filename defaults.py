@@ -106,16 +106,13 @@ class PeopleMeta(sc.prettyobj):
             'p_infectious_by_variant',# Variant states -- rows: variant, columns: True or False; pop_size columns.
 ]
 
-
-      
-
          
         # Immune states, by pathogen by variant
         ##TODO implement them so they are changed based on the date
         self.imm_states = [
-            'sus_imm',  # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
-            'symp_imm', # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
-            'sev_imm',  # Float, by pathogen, by variant (Matrix NxNk, where N is the number of pathogens, and Nk the number of variants of N)
+            'sus_imm',  # Float, by pathogen, by variant, by people,(Matrix NxNkxp, where N is the number of pathogens, and Nk the number of variants of N, whrere p is the population size)
+            'symp_imm', # Float, by pathogen, by variant, by people,(Matrix NxNkxp, where N is the number of pathogens, and Nk the number of variants of N, whrere p is the population size)
+            'sev_imm',  # Float, by pathogen, by variant, by people,(Matrix NxNkxp, where N is the number of pathogens, and Nk the number of variants of N, whrere p is the population size)
         ]
 
         # Neutralizing antibody states, 1D array of length: number of pathogens in simulation

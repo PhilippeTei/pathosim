@@ -2335,7 +2335,7 @@ class historical_wave(Intervention):
             # we need to update the NAbs as it is a cumulative effect
             # this will mess up those who are the seed infections if not reset to naive (see above)
             sim.people.t = t
-            has_nabs = cvu.true(sim.people.peak_nab)
+            has_nabs = cvu.true(sim.people.peak_nab[0]) #TODO change that so that the intervention works with all pathogens
             if len(has_nabs):
                 cvi.update_nab(sim.people, inds=has_nabs)
 

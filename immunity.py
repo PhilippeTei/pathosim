@@ -14,7 +14,7 @@ __all__ = []
 #%% Neutralizing antibody methods
 
 
-def update_peak_nab(people, inds, nab_pars, symp=None):
+def update_peak_nab(people, inds, nab_pars, symp=None, pathogen = 0):
     '''
     Update peak NAb level
 
@@ -35,14 +35,14 @@ def update_peak_nab(people, inds, nab_pars, symp=None):
 
     # Extract parameters and indices
     pars = people.pars
-    has_nabs = people.nab[inds] > 0
+    has_nabs = people.nab[pathogen, inds] > 0
     no_prior_nab_inds = inds[~has_nabs]
     prior_nab_inds = inds[has_nabs]
 
     # 1) Individuals that already have NAbs from a previous vaccination/infection have their NAb level boosted
     if len(prior_nab_inds):
         boost_factor = nab_pars['nab_boost']
-        people.peak_nab[prior_nab_inds] *= boost_factor
+        people.peak_nab[pathogen,prior_nab_inds] *= boost_factor
 
 
     # 2) Individuals without prior NAbs are assigned an initial level drawn from a distribution.
@@ -73,22 +73,22 @@ def update_peak_nab(people, inds, nab_pars, symp=None):
             no_prior_nab = no_prior_nab * prior_symp * norm_factor
 
         # Update people's peak NAbs
-        people.peak_nab[no_prior_nab_inds] = no_prior_nab
+        people.peak_nab[pathogen, no_prior_nab_inds] = no_prior_nab
 
     # Update time of nab event
-    people.t_nab_event[inds] = people.t
+    people.t_nab_event[pathogen,inds] = people.t
 
     return
 
 
-def update_nab(people, inds):
+def update_nab(people, inds, pathogen):
     '''
     Step NAb levels forward in time
     '''
-    t_since_boost = people.t - people.t_nab_event[inds]
-    people.nab[inds] += people.pars['nab_kin'][t_since_boost]*people.peak_nab[inds]
-    people.nab[inds] = np.where(people.nab[inds]<0, 0, people.nab[inds]) # Make sure nabs don't drop below 0
-    people.nab[inds] = np.where([people.nab[inds] > people.peak_nab[inds]], people.peak_nab[inds], people.nab[inds]) # Make sure nabs don't exceed peak_nab
+    t_since_boost = people.t - people.t_nab_event[pathogen, inds]
+    people.nab[pathogen,inds] += people.pars['nab_kin'][t_since_boost]*people.peak_nab[pathogen,inds]
+    people.nab[pathogen,inds] = np.where(people.nab[pathogen,inds]<0, 0, people.nab[pathogen,inds]) # Make sure nabs don't drop below 0
+    people.nab[pathogen,inds] = np.where([people.nab[pathogen,inds] > people.peak_nab[pathogen,inds]], people.peak_nab[pathogen,inds], people.nab[pathogen,inds]) # Make sure nabs don't exceed peak_nab
     return
 
 
@@ -195,7 +195,7 @@ def check_immunity(people, variant, pathogen):
     pars = people.pars
     immunity = pars['immunity'][variant,:] # cross-immunity/own-immunity scalars to be applied to NAb level before computing efficacy
     nab_eff = pars['nab_eff']
-    current_nabs = sc.dcp(people.nab)
+    current_nabs = sc.dcp(people.nab[pathogen])
     imm = np.ones(len(people))
     date_rec = people.date_p_recovered[pathogen]  # Date recovered
     is_vacc = cvu.true(people.vaccinated)  # Vaccinated
@@ -218,9 +218,9 @@ def check_immunity(people, variant, pathogen):
         imm[is_vacc] = imm_arr[vacc_source]
 
     current_nabs *= imm
-    people.sus_imm[variant,:]  = calc_VE(current_nabs, 'sus',  nab_eff)
-    people.symp_imm[variant,:] = calc_VE(current_nabs, 'symp', nab_eff)
-    people.sev_imm[variant,:]  = calc_VE(current_nabs, 'sev',  nab_eff)
+    people.sus_imm[pathogen,variant,:]  = calc_VE(current_nabs, 'sus',  nab_eff)
+    people.symp_imm[pathogen,variant,:] = calc_VE(current_nabs, 'symp', nab_eff)
+    people.sev_imm[pathogen, variant,:]  = calc_VE(current_nabs, 'sev',  nab_eff)
 
     return
 
