@@ -1111,9 +1111,13 @@ class BasePeople(FlexPretty):
         return (~self[key]).nonzero()[0]
 
 
-    def defined(self, key):
+    def defined(self, key, extra_key = -1):
         ''' Return indices of people who are not-nan '''
-        return (~np.isnan(self[key])).nonzero()[0]
+        if(extra_key == -1):
+            return (~np.isnan(self[key])).nonzero()[0]
+        else:
+            
+            return (~np.isnan(self[key][extra_key])).nonzero()[0]
 
 
     def undefined(self, key):

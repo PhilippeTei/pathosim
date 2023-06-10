@@ -5,6 +5,7 @@ import test_infPop as t3
 import test_mortality as t4
 import test_covSimInterventions as t5 
 import test_covVariantsSim as t6
+import test_mergeStates as t7
 
 #To run ALL unittests:
 #python run_tests.py
@@ -43,6 +44,9 @@ def all_tests():
     #test simulations with basic interventions (contact tracing, testing, vaccination, change_beta)
     suite.addTest(t5.test_covSimWithInterventions('test_changeBeta'))
     suite.addTest(t5.test_covSimWithInterventions('test_vaccinateNumAndBoosters'))
+
+    #test merge states functions 
+    suite.addTest(t7.test_mergeStates("test_mergeStates"))
      
      
     return suite

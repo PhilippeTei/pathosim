@@ -1,6 +1,6 @@
 import numpy as np 
 
-def LOD_test(testobj, sim, uids): 
+def LOD_test(testobj, sim, uids, pathogen = 0): 
     '''
     Administer tests to a list of users. Assume people have COVID-19 only if they are exposed (i.e. any time between infection to recovery). 
     Conduct analysis if desired. Record whether they were symptomatic at the time of testing.
@@ -15,7 +15,7 @@ def LOD_test(testobj, sim, uids):
         test_results  (np.array): Boolean array of test results
     '''
     LOD = testobj.LOD
-    test_results = sim.people.viral_load[uids] > LOD
+    test_results = sim.people.viral_load[pathogen, uids] > LOD
     # Identify who is sx/asx at the time of testing and record
     neg_asx = uids[np.logical_and(~test_results, np.logical_and(~sim.people.symptomatic[uids], ~sim.people.symptomatic_ILI[uids]))]
     neg_sx = uids[np.logical_and(~test_results, np.logical_or(sim.people.symptomatic[uids], sim.people.symptomatic_ILI[uids]))]

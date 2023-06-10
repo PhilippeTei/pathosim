@@ -64,7 +64,7 @@ class PeopleMeta(sc.prettyobj):
         # Set the states that a person can be in: these are all booleans per person -- used in people.py
         self.states = [
             'susceptible',
-            'naive',
+            'naive',#remove
             'exposed',
             'infectious',
             'symptomatic',

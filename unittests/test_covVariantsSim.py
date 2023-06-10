@@ -36,6 +36,10 @@ class test_covVariantsSim(unittest.TestCase):
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline')  
             self.assertEqual(True if expected_result==sim.results[k] else False, True)
+            #if expected_result!=sim.results[k]:
+              #  print(sim.result[k])
+              #  print(expected_result)
+              #  print('---------------')
     
     def test_multiVariants(self): 
         alpha  = inf.Pathogen.Variant('alpha', days=0, n_imports=10)

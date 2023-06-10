@@ -29,7 +29,7 @@ class Pathogen(sc.prettyobj):
             sim2    = cv.Sim(variants=cv.variant('alpha', days=0, n_imports=20), pop_infected=0).run() # Replace default variant with alpha
         '''
 
-        def __init__(self, variant, days, label=None, n_imports=1, rescale=True):
+        def __init__(self, variant, days, label=None, n_imports=1, rescale=True, pathogen = 0):
             self.days = days # Handle inputs
             self.n_imports = int(n_imports)
             self.rescale   = rescale
@@ -37,6 +37,7 @@ class Pathogen(sc.prettyobj):
             self.label     = None # Variant label (used as a dict key)
             self.p         = None # This is where the parameters will be stored
             self.parse(variant=variant, label=label) # Variants can be defined in different ways: process these here
+            self.pathogen = pathogen
             self.initialized = False
             return
 
@@ -111,7 +112,7 @@ class Pathogen(sc.prettyobj):
         def apply(self, sim):
             ''' Introduce new infections with this variant '''
             for ind in itvs.find_day(self.days, sim.t, interv=self, sim=sim): # Time to introduce variant
-                susceptible_inds = utls.true(sim.people.susceptible)
+                susceptible_inds = utls.true(sim.people.p_susceptible[self.pathogen])
                 rescale_factor = sim.rescale_vec[sim.t] if self.rescale else 1.0
                 scaled_imports = self.n_imports/rescale_factor
                 n_imports = sc.randround(scaled_imports) # Round stochastically to the nearest number of imports
@@ -119,7 +120,7 @@ class Pathogen(sc.prettyobj):
                     msg = f'Warning: {self.n_imports:n} imported infections of {self.label} were specified on day {sim.t}, but given the rescale factor of {rescale_factor:n}, no agents were infected. Increase the number of imports or use more agents.'
                     print(msg)
                 importation_inds = np.random.choice(susceptible_inds, n_imports, replace=False) # Can't use utls.choice() since sampling from indices
-                sim.people.infect(inds=importation_inds, layer='importation', variant=self.index)
+                sim.people.infect(inds=importation_inds, layer='importation', variant=self.index, pathogen_index = self.pathogen)
                 sim.results['n_imports'][sim.t] += n_imports
             return
 

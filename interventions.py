@@ -1368,7 +1368,7 @@ class simple_vaccine(Intervention):
         return
 
 
-    def apply(self, sim):
+    def apply(self, sim, pathogen = 0):
         ''' Perform vaccination '''
 
         # If this day is found in the list, apply the intervention
@@ -1389,8 +1389,8 @@ class simple_vaccine(Intervention):
             rel_symp_eff = (1.0 - vacc_eff) + vacc_eff*self.rel_symp
 
             # Apply the vaccine to people
-            sim.people.rel_sus[vacc_inds]   *= rel_sus_eff
-            sim.people.symp_prob[vacc_inds] *= rel_symp_eff
+            sim.people.rel_sus[pathogen,vacc_inds]   *= rel_sus_eff
+            sim.people.symp_prob[pathogen,vacc_inds] *= rel_symp_eff
 
             # Update counters
             self.mod_rel_sus[vacc_inds]   *= rel_sus_eff
@@ -2226,7 +2226,7 @@ class historical_wave(Intervention):
         people = sim.people
 
         # find the seed infections (set during sim.init_people()) and blank them out
-        seed_inds = cvu.true(sim.people.date_exposed == 0)
+        seed_inds = cvu.true(sim.people.date_p_exposed[0] == 0)
         people.make_naive(seed_inds)
 
         # pick variant mapping index (integer value)

@@ -538,6 +538,18 @@ __all__ += ['true',   'false',   'defined',   'undefined',
             'itrue',  'ifalse',  'idefined',  'iundefined',
             'itruei', 'ifalsei', 'idefinedi', 'iundefinedi']
 
+def np_arr_equal_with_nan(arr1,arr2):
+    if(len(arr1) != len (arr2)):
+        print("AAAAAAAAAA")
+        return False
+
+    for i in range(len(arr1)):
+            if arr1[i] != arr2[i]:
+                if(not np.isnan(arr1[i]) or not  np.isnan(arr2[i])):
+                    print("PPDSPSDPSDPDPSPD")
+                    return False
+
+    return True
 
 def true(arr):
     '''

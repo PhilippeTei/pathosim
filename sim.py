@@ -719,8 +719,7 @@ class Sim(cvb.BaseSim):
         return
 
 
-    def step(self):
-
+    def step(self): 
         #integrate this into some loop
         current_pathogen = 0
         '''
@@ -733,6 +732,7 @@ class Sim(cvb.BaseSim):
             raise AlreadyRunError('Simulation already complete (call sim.initialize() to re-run)')
 
         t = self.t
+
 
         # If it's the first timestep, infect people
         if t == 0:
@@ -776,9 +776,9 @@ class Sim(cvb.BaseSim):
             frac_time = cvd.default_float(self['viral_dist']['frac_time'])
             load_ratio = cvd.default_float(self['viral_dist']['load_ratio'])
             high_cap = cvd.default_float(self['viral_dist']['high_cap'])
-            date_inf = people.date_infectious
-            date_rec = people.date_recovered
-            date_dead = people.date_dead
+            date_inf = people.date_p_infectious[current_pathogen]
+            date_rec = people.date_p_recovered[current_pathogen]
+            date_dead = people.date_p_dead[current_pathogen]
 
             viral_load = cvu.compute_viral_load_old(t, date_inf, date_rec, date_dead, frac_time, load_ratio, high_cap)
         else:
@@ -788,7 +788,7 @@ class Sim(cvb.BaseSim):
             min_vl = cvd.default_float(self['viral_levels']['min_vl'])
             max_vl = cvd.default_float(self['viral_levels']['max_vl'])
 
-            people.viral_load, viral_load = cvu.compute_viral_load(t, x_p1, y_p1, x_p2, y_p2, x_p3, y_p3, min_vl, max_vl)
+            people.viral_load[current_pathogen], viral_load = cvu.compute_viral_load(t, x_p1, y_p1, x_p2, y_p2, x_p3, y_p3, min_vl, max_vl)
 
         # # For testing purposes
         # if t < self.pars['vl_trajs'].shape[1]:
@@ -840,16 +840,16 @@ class Sim(cvb.BaseSim):
             people.schedule_behaviour(self['behaviour_pars'])
 
         # Implement state changes relating to quarantine and isolation/diagnosis; compute associated statistics
-        people.update_states_post(pathogen = 0)
+        people.update_states_post(pathogen = current_pathogen)
 
         # Shorten useful parameters
-        nv = self['n_variants'][0] # variants of CURRENT PATHOGEN
-        sus = people.susceptible
-        symp = people.symptomatic
-        diag = people.diagnosed
+        nv = self['n_variants'][current_pathogen] # variants of CURRENT PATHOGEN
+        sus = people.p_susceptible[current_pathogen]
+        symp = people.p_symptomatic[current_pathogen]
+        diag = people.p_diagnosed[current_pathogen]
         quar = people.quarantined
-        prel_trans = people.rel_trans
-        prel_sus   = people.rel_sus
+        prel_trans = people.rel_trans[current_pathogen]
+        prel_sus   = people.rel_sus[current_pathogen]
 
         # Iterate through n_variants to calculate infections. The meat of the simulation. 
         for variant in range(nv):
@@ -885,6 +885,7 @@ class Sim(cvb.BaseSim):
                     source_inds, target_inds = cvu.compute_infections(beta, p1, p2, betas, rel_trans, rel_sus, legacy=self._legacy_trans)  # Calculate transmission!
                     people.infect(inds=target_inds, hosp_max=hosp_max, icu_max=icu_max, source=source_inds, layer=lkey, variant=variant, pathogen_index = current_pathogen)  # Actually infect people
 
+                      
         ##### CALCULATE STATISTICS #####
 
         # Update counts for this time step: stocks.
@@ -1079,7 +1080,7 @@ class Sim(cvb.BaseSim):
                         sc.progressbar(self.t+1, self.npts, label=string, length=20, newline=True)
 
             # Do the heavy lifting -- actually run the model!
-            self.step()
+            self.step() 
             self.validate_people_states()
 
         # If simulation reached the end, finalize the results
@@ -1100,16 +1101,27 @@ class Sim(cvb.BaseSim):
         if self.pars['n_pathogens'] != 1:
             return;
           
-        assert np.array_equal(self.people.susceptible, self.people.p_susceptible[0])
-        assert np.array_equal(self.people.naive, self.people.p_naive[0])
-        assert np.array_equal(self.people.exposed, self.people.p_exposed[0])
-        assert np.array_equal(self.people.infectious, self.people.p_infectious[0])
-        assert np.array_equal(self.people.symptomatic, self.people.p_symptomatic[0])
-        assert np.array_equal(self.people.severe, self.people.p_severe[0])
-        assert np.array_equal(self.people.recovered, self.people.p_recovered[0])
-        assert np.array_equal(self.people.dead, self.people.p_dead[0])
-        #assert np.array_equal(self.people.diagnosed, self.people.p_diagnosed[0])
-        #assert np.array_equal(self.people.tested, self.people.p_tested[0]) 
+        assert np.array_equal(self.people.susceptible, self.people.p_susceptible[0]) 
+        assert np.array_equal(self.people.naive, self.people.p_naive[0]) 
+        assert np.array_equal(self.people.exposed, self.people.p_exposed[0]) 
+        assert np.array_equal(self.people.infectious, self.people.p_infectious[0]) 
+        assert np.array_equal(self.people.symptomatic, self.people.p_symptomatic[0]) 
+        assert np.array_equal(self.people.severe, self.people.p_severe[0]) 
+        assert np.array_equal(self.people.recovered, self.people.p_recovered[0]) 
+        assert np.array_equal(self.people.dead, self.people.p_dead[0]) 
+        assert np.array_equal(self.people.diagnosed, self.people.p_diagnosed[0]) 
+        assert np.array_equal(self.people.tested, self.people.p_tested[0]) 
+         
+      
+        assert np.array_equal(self.people.date_susceptible, self.people.date_p_susceptible[0], equal_nan = True)
+        assert np.array_equal(self.people.date_exposed,     self.people.date_p_exposed[0]    , equal_nan = True)
+        assert np.array_equal(self.people.date_infectious,  self.people.date_p_infectious[0] , equal_nan = True)
+        assert np.array_equal(self.people.date_symptomatic, self.people.date_p_symptomatic[0], equal_nan = True)
+        assert np.array_equal(self.people.date_severe,      self.people.date_p_severe[0]     , equal_nan = True)
+        assert np.array_equal(self.people.date_recovered,   self.people.date_p_recovered[0]  , equal_nan = True)
+        assert np.array_equal(self.people.date_dead,        self.people.date_p_dead[0]       , equal_nan = True)
+        assert np.array_equal(self.people.date_diagnosed,   self.people.date_p_diagnosed[0]  , equal_nan = True)
+        assert np.array_equal(self.people.date_tested,      self.people.date_p_tested[0]     , equal_nan = True)
         #if(self.pars['n_variants'][0]>1 and self.complete): 
         #    for i in range(len(self.people.infectious_variant)):
          #       if self.people.infectious_variant[i] != self.people.p_infectious_variant[0,i]:
@@ -1124,7 +1136,7 @@ class Sim(cvb.BaseSim):
             #assert np.array_equal(self.people.infectious_by_variant, self.people.p_infectious_by_variant[0])
 
              
-
+    
     def finalize(self, verbose=None, restore_pars=True):
         ''' Compute final results '''
 
@@ -1267,7 +1279,7 @@ class Sim(cvb.BaseSim):
         return self.results['doubling_time'].values
 
 
-    def compute_r_eff(self, method='daily', smoothing=2, window=7):
+    def compute_r_eff(self, method='daily', smoothing=2, window=7, pathogen = 0):
         '''
         Effective reproduction number based on number of people each person infected.
 
@@ -1289,13 +1301,13 @@ class Sim(cvb.BaseSim):
         if method == 'daily':
 
             # Find the dates that everyone became infectious and recovered, and hence calculate infectious duration
-            recov_inds   = self.people.defined('date_recovered')
-            dead_inds    = self.people.defined('date_dead')
-            date_recov   = self.people.date_recovered[recov_inds]
+            recov_inds   = self.people.defined('date_recovered',0)
+            dead_inds    = self.people.defined('date_dead',0)
+            date_recov   = self.people.date_p_recovered[pathogen, recov_inds]
             date_dead    = self.people.date_dead[dead_inds]
             date_outcome = np.concatenate((date_recov, date_dead))
             inds         = np.concatenate((recov_inds, dead_inds))
-            date_inf     = self.people.date_infectious[inds]
+            date_inf     = self.people.date_p_infectious[pathogen, inds]
             if len(date_outcome):
                 mean_inf     = date_outcome.mean() - date_inf.mean()
             else:
@@ -1332,9 +1344,9 @@ class Sim(cvb.BaseSim):
 
                 # Sources are easy -- count up the arrays for all the people who became infections on that day
                 if method == 'infectious':
-                    inds = cvu.true(t == self.people.date_infectious) # Find people who became infectious on this timestep
+                    inds = cvu.true(t == self.people.date_p_infectious[pathogen]) # Find people who became infectious on this timestep
                 elif method == 'outcome':
-                    recov_inds = cvu.true(t == self.people.date_recovered) # Find people who recovered on this timestep
+                    recov_inds = cvu.true(t == self.people.date_p_recovered[pathogen]) # Find people who recovered on this timestep
                     dead_inds  = cvu.true(t == self.people.date_dead)  # Find people who died on this timestep
                     inds       = np.concatenate((recov_inds, dead_inds))
                 sources[t] = len(inds)
@@ -1374,7 +1386,7 @@ class Sim(cvb.BaseSim):
         return self.results['r_eff'].values
 
 
-    def compute_gen_time(self):
+    def compute_gen_time(self, pathogen = 0):
         '''
         Calculate the generation time (or serial interval). There are two
         ways to do this calculation. The 'true' interval (exposure time to
@@ -1388,8 +1400,8 @@ class Sim(cvb.BaseSim):
         intervals2 = np.zeros(len(self.people))
         pos1 = 0
         pos2 = 0
-        date_exposed = self.people.date_exposed
-        date_symptomatic = self.people.date_symptomatic
+        date_exposed = self.people.date_p_exposed[pathogen]
+        date_symptomatic = self.people.date_p_symptomatic[pathogen]
 
         for infection in self.people.infection_log:
             if infection['source'] is not None:
