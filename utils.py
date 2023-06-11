@@ -536,17 +536,44 @@ def choose_w(probs, n, unique=True): # No performance gain from Numba
 
 __all__ += ['true',   'false',   'defined',   'undefined',
             'itrue',  'ifalse',  'idefined',  'iundefined',
-            'itruei', 'ifalsei', 'idefinedi', 'iundefinedi']
+            'itruei', 'ifalsei', 'idefinedi', 'iundefinedi', 'custom_np_fmin']
+
+@nb.njit()
+def custom_np_fmin(arr1, arr2, size):
+    for j in range(size):
+        if not (np.isnan(arr1[j]) and np.isnan(arr2[j])):
+            if np.isnan(arr2[j]):
+                arr2[j] = arr1[j]
+            elif not np.isnan(arr1[j]):
+                arr2[j] = min(arr1[j], arr2[j]) 
+            else:
+                arr2[j] = np.nan
+        else:
+            arr2[j] = np.nan
+    return arr2
+
+@nb.njit()
+def custom_np_fmax(arr1, arr2, size):
+    for j in range(size):
+        if not (np.isnan(arr1[j]) and np.isnan(arr2[j])):
+            if np.isnan(arr2[j]):
+                arr2[j] = arr1[j]
+            elif not np.isnan(arr1[j]):
+                arr2[j] = max(arr1[j], arr2[j]) 
+            else:
+                arr2[j] = np.nan
+        else:
+            arr2[j] = np.nan
+    return arr2
+
 
 def np_arr_equal_with_nan(arr1,arr2):
-    if(len(arr1) != len (arr2)):
-        print("AAAAAAAAAA")
+    if(len(arr1) != len (arr2)): 
         return False
 
     for i in range(len(arr1)):
             if arr1[i] != arr2[i]:
-                if(not np.isnan(arr1[i]) or not  np.isnan(arr2[i])):
-                    print("PPDSPSDPSDPDPSPD")
+                if(not np.isnan(arr1[i]) or not  np.isnan(arr2[i])): 
                     return False
 
     return True

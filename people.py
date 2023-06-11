@@ -1238,30 +1238,11 @@ class People(cvb.BasePeople):
             if(useMin):
                 #v = np.fmin(v, self[f'date_p_{state_key}'][0])
                 #v = np.fmin(v, self[f'date_p_{state_key}'][i])
-                 
-                for j in range(self.pars['pop_size']):
-                    if not (np.isnan(self[f'date_p_{state_key}'][i,j]) and np.isnan(v[j])):
-                        if np.isnan(v[j]):
-                           v[j] = self[f'date_p_{state_key}'][i,j]
-                        elif not np.isnan(self[f'date_p_{state_key}'][i,j]):
-                            v[j] = min(self[f'date_p_{state_key}'][i,j], v[j]) 
-                        else:
-                            v[j] = np.nan
-                    else:
-                        v[j] = np.nan
+                v = cvu.custom_np_fmin(self[f'date_p_{state_key}'][i], v, size = self.pars['pop_size'])
             else:
                 #v = np.maximum(self[f'date_p_{state_key}'][i], v)
                 #v = self[f'date_p_{state_key}'][i]
-                for j in range(self.pars['pop_size']):
-                    if not (np.isnan(self[f'date_p_{state_key}'][i,j]) and np.isnan(v[j])):
-                        if np.isnan(v[j]):
-                           v[j] = self[f'date_p_{state_key}'][i,j]
-                        elif not np.isnan(self[f'date_p_{state_key}'][i,j]):
-                            v[j] = max(self[f'date_p_{state_key}'][i,j], v[j]) 
-                        else:
-                            v[j] = np.nan
-                    else:
-                        v[j] = np.nan
+                v = cvu.custom_np_fmax(self[f'date_p_{state_key}'][i], v, size = self.pars['pop_size'])
         
         #if(np.array_equal(v, self[f'date_p_{state_key}'][0], equal_nan = True) == False):
             
