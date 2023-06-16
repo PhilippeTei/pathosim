@@ -11,8 +11,13 @@ class test_mergeStates(unittest.TestCase):
         #simple sim to init object
         pop_size = 2
         n_days = 5
-        sim = inf.Sim(pop_size=pop_size, pop_infected=0, n_days=n_days, verbose = 0, n_pathogens = 3)
-        sim.init_people()
+
+        p1 = inf.Pathogen(1)
+        p2 = inf.Pathogen(1)
+        p3 = inf.Pathogen(1)
+
+        sim = inf.Sim(pop_size=pop_size, n_days=n_days, verbose = 0, pathogens = [p1,p2,p3])
+        sim.initialize()
 
         p1arr1=np.array([True, False]) 
         p2arr1=np.array([False, False]) 
@@ -34,7 +39,7 @@ class test_mergeStates(unittest.TestCase):
         sim.people.p_recovered[1]=p2arr2
         sim.people.p_recovered[2]=p3arr2
 
-        sim.people.merge_states(3, True, None, False);
+        sim.people.merge_states(3, True, False);
          
         self.assertEqual(True if np.array_equal(expectedArr1, sim.people.susceptible)else False, True)
         self.assertEqual(True if np.array_equal(expectedArr2, sim.people.recovered)else False, True)

@@ -9,11 +9,11 @@ from . import misc as cvm
 from . import defaults as cvd
 from . import pathogens as pat
 
-__all__ = ['make_pars', 'reset_layer_pars', 'get_prognoses', 'get_variant_choices', 'get_vaccine_choices',
-           'get_variant_pars', 'get_cross_immunity', 'get_vaccine_variant_pars', 'get_vaccine_dose_pars']
+__all__ = ['make_pars', 'reset_layer_pars', 'get_vaccine_choices',
+            'get_vaccine_variant_pars', 'get_vaccine_dose_pars']
 
 
-def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
+def make_pars(version=None, **kwargs):
     '''
     Create the parameters for the simulation. Typically, this function is used
     internally rather than called by the user; e.g. typical use would be to do
@@ -34,7 +34,7 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     #Multi-pathogen
     #pars['pathogens'] = pat.Pathogen('SARS-CoV-2')
     pars['n_pathogens'] = 1 #Number of pathogens circulating in the simulation
-
+    pars['pathogens'] = []
     #----------------- ADDITIONAL MODULES (not in baseline multi-pathogen sim)-----------------#
     # Multi-region
     pars['enable_multiregion'] = False
@@ -58,7 +58,6 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     #--------------------------- POPULATION & CONTACTS PARAMETERS------------------------------#
     # Population parameters
     pars['pop_size']     = 20e3     # Number of agents, i.e., people susceptible to SARS-CoV-2
-    pars['pop_infected'] = 20       # Number of initial infections
     pars['pop_type']     = 'random' # What type of population data to use -- 'random' (fastest), 'synthpops' (best), 'hybrid' (compromise)
     pars['location']     = None     # What location to load data from -- default Seattle
     pars['pop']          = None     # Detailed synthetic population -- this is supplied for access to workplace information for surveillance
@@ -77,69 +76,16 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
     pars['rescale_threshold'] = 0.05 # Fraction susceptible population that will trigger rescaling if rescaling
     pars['rescale_factor']    = 1.2  # Factor by which the population is rescaled on each step
     pars['frac_susceptible']  = 1.0  # What proportion of the population is susceptible to infection
-
+    
     # Network parameters, generally initialized after the population has been constructed
     pars['contacts']        = None  # The number of contacts per layer; set by reset_layer_pars() below
     pars['dynam_layer']     = None  # Which layers are dynamic; set by reset_layer_pars() below
     pars['beta_layer']      = None  # Transmissibility per layer; set by reset_layer_pars() below
 
+     
     #-------------------------------------------------------------------------------------------#
-    
-    pars['enable_vl']    = True # Specifies whether we should use the updated viral load calculation; False = use native calculation 
     pars['use_waning']   = True # Whether to use dynamically calculated immunity
-
-    #--------------------------PATHOGEN SPECIFIC PARAMETERS-------------------------------------# TODO put that in the pathogen class
-
-    # Basic disease transmission parameters
-    pars['beta_dist']    = dict(dist='neg_binomial', par1=1.0, par2=0.45, step=0.01) # Distribution to draw individual level transmissibility; dispersion from https://www.researchsquare.com/article/rs-29548/v1
-    pars['viral_dist']   = dict(frac_time=0.3, load_ratio=2, high_cap=4) # The time varying viral load (transmissibility); estimated from Lescure 2020, Lancet, https://doi.org/10.1016/S1473-3099(20)30200-0
-    pars['beta']         = 0.016  # Beta per symptomatic contact; absolute value, calibrated
-    pars['asymp_factor'] = 1.0  # Multiply beta by this factor for asymptomatic cases; no statistically significant difference in transmissibility: https://www.sciencedirect.com/science/article/pii/S1201971220302502
-    pars['viral_levels'] = dict(min_vl=0.75, max_vl=2) # Specifies the range within which viral load should be scaled so it can contribute to relative transmissibility
-
-    # Parameters that control settings and defaults for multi-variant runs
-    pars['n_imports']  = 0 # Average daily number of imported cases (actual number is drawn from Poisson distribution)
-    pars['n_variants'] = np.full(1,1,dtype = int) # The number of variants circulating in the population
-
-    # Parameters used to calculate immunity 
-    pars['use_nab_framework'] = True
-    pars['nab_init']     = dict(dist='normal', par1=0, par2=2)  # Parameters for the distribution of the initial level of log2(nab) following natural infection, taken from fig1b of https://doi.org/10.1101/2021.03.09.21252641
-    pars['nab_decay']    = dict(form='nab_growth_decay', growth_time=21, decay_rate1=np.log(2) / 50, decay_time1=150, decay_rate2=np.log(2) / 250, decay_time2=365)
-    pars['nab_kin']      = None # Constructed during sim initialization using the nab_decay parameters
-    pars['nab_boost']    = 1.5 # Multiplicative factor applied to a person's nab levels if they get reinfected. No data on this, assumption.
-    pars['nab_eff']      = dict(alpha_inf=1.08, alpha_inf_diff=1.812, beta_inf=0.967, alpha_symp_inf=-0.739, beta_symp_inf=0.038, alpha_sev_symp=-0.014, beta_sev_symp=0.079) # Parameters to map nabs to efficacy
-    pars['rel_imm_symp'] = dict(asymp=0.85, mild=1, severe=1.5) # Relative immunity from natural infection varies by symptoms. Assumption.
-    pars['immunity']     = None  # Matrix of immunity and cross-immunity factors, set by init_immunity() in immunity.py
-    pars['trans_redux']  = 0.59  # Reduction in transmission for breakthrough infections, https://www.medrxiv.org/content/10.1101/2021.07.13.21260393v
-
-    # Variant-specific disease transmission parameters. By default, these are set up for a single variant, but can all be modified for multiple variants
-    pars['rel_beta']        = 1.0 # Relative transmissibility varies by variant
-
-    # Duration parameters: time for disease progression
-    pars['dur'] = {}
-    pars['dur']['exp2inf']  = dict(dist='lognormal_int', par1=4.5, par2=1.5) # Duration from exposed to infectious; see Lauer et al., https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7081172/, appendix table S2, subtracting inf2sym duration
-    pars['dur']['inf2sym']  = dict(dist='lognormal_int', par1=1.1, par2=0.9) # Duration from infectious to symptomatic; see Linton et al., https://doi.org/10.3390/jcm9020538, from Table 2, 5.6 day incubation period - 4.5 day exp2inf from Lauer et al.
-    pars['dur']['sym2sev']  = dict(dist='lognormal_int', par1=6.6, par2=4.9) # Duration from symptomatic to severe symptoms; see Linton et al., https://doi.org/10.3390/jcm9020538, from Table 2, 6.6 day onset to hospital admission (deceased); see also Wang et al., https://jamanetwork.com/journals/jama/fullarticle/2761044, 7 days (Table 1)
-    pars['dur']['sev2crit'] = dict(dist='lognormal_int', par1=1.5, par2=2.0) # Duration from severe symptoms to requiring ICU; average of 1.9 and 1.0; see Chen et al., https://www.sciencedirect.com/science/article/pii/S0163445320301195, 8.5 days total - 6.6 days sym2sev = 1.9 days; see also Wang et al., https://jamanetwork.com/journals/jama/fullarticle/2761044, Table 3, 1 day, IQR 0-3 days; std=2.0 is an estimate
-
-    # Duration parameters: time for disease recovery
-    pars['dur']['asym2rec'] = dict(dist='lognormal_int', par1=8.0,  par2=2.0) # Duration for asymptomatic people to recover; see Wölfel et al., https://www.nature.com/articles/s41586-020-2196-x
-    pars['dur']['mild2rec'] = dict(dist='lognormal_int', par1=8.0,  par2=2.0) # Duration for people with mild symptoms to recover; see Wölfel et al., https://www.nature.com/articles/s41586-020-2196-x
-    pars['dur']['sev2rec']  = dict(dist='lognormal_int', par1=18.1, par2=6.3) # Duration for people with severe symptoms to recover, 24.7 days total; see Verity et al., https://www.thelancet.com/journals/laninf/article/PIIS1473-3099(20)30243-7/fulltext; 18.1 days = 24.7 onset-to-recovery - 6.6 sym2sev; 6.3 = 0.35 coefficient of variation * 18.1; see also https://doi.org/10.1017/S0950268820001259 (22 days) and https://doi.org/10.3390/ijerph17207560 (3-10 days)
-    pars['dur']['crit2rec'] = dict(dist='lognormal_int', par1=18.1, par2=6.3) # Duration for people with critical symptoms to recover; as above (Verity et al.)
-    pars['dur']['crit2die'] = dict(dist='lognormal_int', par1=10.7, par2=4.8) # Duration from critical symptoms to death, 18.8 days total; see Verity et al., https://www.thelancet.com/journals/laninf/article/PIIS1473-3099(20)30243-7/fulltext; 10.7 = 18.8 onset-to-death - 6.6 sym2sev - 1.5 sev2crit; 4.8 = 0.45 coefficient of variation * 10.7
-
-    # Severity parameters: probabilities of symptom progression
-    pars['rel_symp_prob']   = 1.0  # Scale factor for proportion of symptomatic cases
-    pars['rel_severe_prob'] = 1.0  # Scale factor for proportion of symptomatic cases that become severe
-    pars['rel_crit_prob']   = 1.0  # Scale factor for proportion of severe cases that become critical
-    pars['rel_death_prob']  = 1.0  # Scale factor for proportion of critical cases that result in death
-    pars['prog_by_age']     = prog_by_age # Whether to set disease progression based on the person's age
-    pars['prognoses']       = None # The actual arrays of prognoses by age; this is populated later
-
-    # ILI: Proportion of population with symptomatic ILI on any given day. Can be a list, in which case length needs to be at least ceil((n_days + 1) / 7).
-    pars['bkg_ILI'] = 0.04
-
+     
     # Symptoms: symptom prevalence within the population
     pars['prev_COVID'] = None
     pars['prev_ILI'] = None
@@ -183,19 +129,12 @@ def make_pars(set_prognoses=False, prog_by_age=True, version=None, **kwargs):
 
     # Handle vaccine and variant parameters
     pars['vaccine_pars'] = {} # Vaccines that are being used; populated during initialization
-    pars['vaccine_map']  = {} #Reverse mapping from number to vaccine key
-    pars['variants']     = [] # Additional variants of the virus; populated by the user, see immunity.py
-    pars['variant_map']  = {0:'wild'} # Reverse mapping from number to variant key
-    pars['variant_pars'] = dict(wild={}) # Populated just below
-    for sp in cvd.variant_pars:
-        if sp in pars.keys():
-            pars['variant_pars']['wild'][sp] = pars[sp]
+    pars['vaccine_map']  = {} #Reverse mapping from number to vaccine key 
+      
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)
     reset_layer_pars(pars)
-    if set_prognoses: # If not set here, gets set when the population is initialized
-        pars['prognoses'] = get_prognoses(pars['prog_by_age'], version=version) # Default to age-specific prognoses
  
     return pars
 
@@ -280,112 +219,8 @@ def reset_layer_pars(pars, layer_keys=None, force=False):
         pars[pkey] = par # Save this parameter to the dictionary
 
     return
-
-
-def get_prognoses(by_age=True, version=None):
-    '''
-    Return the default parameter values for prognoses
-
-    The prognosis probabilities are conditional given the previous disease state.
-
-    Args:
-        by_age (bool): whether to use age-specific values (default true)
-
-    Returns:
-        prog_pars (dict): the dictionary of prognosis probabilities
-    '''
-
-    if not by_age: # All rough estimates -- almost always, prognoses by age (below) are used instead
-        prognoses = dict(
-            age_cutoffs   = np.array([0]),
-            sus_ORs       = np.array([1.00]),
-            trans_ORs     = np.array([1.00]),
-            symp_probs    = np.array([0.75]),
-            comorbidities = np.array([1.00]),
-            severe_probs  = np.array([0.10]),
-            crit_probs    = np.array([0.04]),
-            death_probs   = np.array([0.01]),
-        )
-    else:
-        prognoses = dict(
-            age_cutoffs   = np.array([0,       10,      20,      30,      40,      50,      60,      70,      80,      90,]),     # Age cutoffs (lower limits)
-            sus_ORs       = np.array([0.34,    0.67,    1.00,    1.00,    1.00,    1.00,    1.24,    1.47,    1.47,    1.47]),    # Odds ratios for relative susceptibility -- from Zhang et al., https://science.sciencemag.org/content/early/2020/05/04/science.abb8001; 10-20 and 60-70 bins are the average across the ORs
-            trans_ORs     = np.array([1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00]),    # Odds ratios for relative transmissibility -- no evidence of differences
-            comorbidities = np.array([1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00,    1.00]),    # Comorbidities by age -- set to 1 by default since already included in disease progression rates
-            symp_probs    = np.array([0.50,    0.55,    0.60,    0.65,    0.70,    0.75,    0.80,    0.85,    0.90,    0.90]),    # Overall probability of developing symptoms (based on https://www.medrxiv.org/content/10.1101/2020.03.24.20043018v1.full.pdf, scaled for overall symptomaticity)
-            severe_probs  = np.array([0.00050, 0.00165, 0.00720, 0.02080, 0.03430, 0.07650, 0.13280, 0.20655, 0.24570, 0.24570]), # Overall probability of developing severe symptoms (derived from Table 1 of https://www.imperial.ac.uk/media/imperial-college/medicine/mrc-gida/2020-03-16-COVID19-Report-9.pdf)
-            crit_probs    = np.array([0.00003, 0.00008, 0.00036, 0.00104, 0.00216, 0.00933, 0.03639, 0.08923, 0.17420, 0.17420]), # Overall probability of developing critical symptoms (derived from Table 1 of https://www.imperial.ac.uk/media/imperial-college/medicine/mrc-gida/2020-03-16-COVID19-Report-9.pdf)
-            death_probs   = np.array([0.00002, 0.00002, 0.00010, 0.00032, 0.00098, 0.00265, 0.00766, 0.02439, 0.08292, 0.16190]), # Overall probability of dying -- from O'Driscoll et al., https://www.nature.com/articles/s41586-020-2918-0; last data point from Brazeau et al., https://www.imperial.ac.uk/mrc-global-infectious-disease-analysis/covid-19/report-34-ifr/
-        )
-    prognoses = relative_prognoses(prognoses) # Convert to conditional probabilities
-
-    # If version is specified, load old parameters
-    if by_age and version is not None:
-        version_prognoses = cvm.get_version_pars(version, verbose=False)['prognoses']
-        for key in version_prognoses.keys(): # Only loop over keys that have been populated
-            if key in version_prognoses: # Only replace keys that exist in the old version
-                prognoses[key] = np.array(version_prognoses[key])
-
-    # Check that lengths match
-    expected_len = len(prognoses['age_cutoffs'])
-    for key,val in prognoses.items():
-        this_len = len(prognoses[key])
-        if this_len != expected_len: # pragma: no cover
-            errormsg = f'Lengths mismatch in prognoses: {expected_len} age bins specified, but key "{key}" has {this_len} entries'
-            raise ValueError(errormsg)
-
-    return prognoses
-
-
-def relative_prognoses(prognoses):
-    '''
-    Convenience function to revert absolute prognoses into relative (conditional)
-    ones. Internally, Covasim uses relative prognoses.
-    '''
-    out = sc.dcp(prognoses)
-    out['death_probs']  /= out['crit_probs']   # Conditional probability of dying, given critical symptoms
-    out['crit_probs']   /= out['severe_probs'] # Conditional probability of symptoms becoming critical, given severe
-    out['severe_probs'] /= out['symp_probs']   # Conditional probability of symptoms becoming severe, given symptomatic
-    return out
-
-
-def absolute_prognoses(prognoses):
-    '''
-    Convenience function to revert relative (conditional) prognoses into absolute
-    ones. Used to convert internally used relative prognoses into more readable
-    absolute ones.
-
-    **Example**::
-
-        sim = cv.Sim()
-        abs_progs = cv.parameters.absolute_prognoses(sim['prognoses'])
-    '''
-    out = sc.dcp(prognoses)
-    out['severe_probs'] *= out['symp_probs']   # Absolute probability of severe symptoms
-    out['crit_probs']   *= out['severe_probs'] # Absolute probability of critical symptoms
-    out['death_probs']  *= out['crit_probs']   # Absolute probability of dying
-    return out
-
-
-#%% Variant, vaccine, and immunity parameters and functions
-
-def get_variant_choices():
-    '''
-    Define valid pre-defined variant names
-    '''
-    # List of choices currently available: new ones can be added to the list along with their aliases
-    choices = {
-        'wild':  ['wild', 'default', 'pre-existing', 'original'],
-        'alpha': ['alpha', 'b117', 'uk', 'united kingdom', 'kent'],
-        'beta':  ['beta', 'b1351', 'sa', 'south africa'],
-        'gamma': ['gamma', 'p1', 'b11248', 'brazil'],
-        'delta': ['delta', 'b16172', 'india'],
-        'omicron': ['omicron']
-    }
-    mapping = {name:key for key,synonyms in choices.items() for name in synonyms} # Flip from key:value to value:key
-    return choices, mapping
-
-
+ 
+ 
 def get_vaccine_choices():
     '''
     Define valid pre-defined vaccine names
@@ -424,129 +259,7 @@ def _get_from_pars(pars, default=False, key=None, defaultkey='default'):
     else:
         return pars
 
-
-def get_variant_pars(default=False, variant=None):
-    '''
-    Define the default parameters for the different variants
-    '''
-    pars = dict(
-
-        wild = dict(
-            rel_beta        = 1.0, # Default values
-            rel_symp_prob   = 1.0, # Default values
-            rel_severe_prob = 1.0, # Default values
-            rel_crit_prob   = 1.0, # Default values
-            rel_death_prob  = 1.0, # Default values
-        ),
-
-        alpha = dict(
-            rel_beta        = 1.67, # Midpoint of the range reported in https://science.sciencemag.org/content/372/6538/eabg3055
-            rel_symp_prob   = 1.0,  # Inconclusive evidence on the likelihood of symptom development. See https://www.thelancet.com/journals/lanpub/article/PIIS2468-2667(21)00055-4/fulltext
-            rel_severe_prob = 1.64, # From https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3792894, and consistent with https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2021.26.16.2100348 and https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/961042/S1095_NERVTAG_update_note_on_B.1.1.7_severity_20210211.pdf
-            rel_crit_prob   = 1.0,  # Various studies have found increased mortality for B117 (summary here: https://www.thelancet.com/journals/laninf/article/PIIS1473-3099(21)00201-2/fulltext#tbl1), but not necessarily when conditioned on having developed severe disease
-            rel_death_prob  = 1.0,  # See comment above
-        ),
-
-        beta = dict(
-            rel_beta        = 1.0, # No increase in transmissibility; B1351's fitness advantage comes from the reduction in neutralisation
-            rel_symp_prob   = 1.0,
-            rel_severe_prob = 3.6, # From https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2021.26.16.2100348
-            rel_crit_prob   = 1.0,
-            rel_death_prob  = 1.0,
-        ),
-
-        gamma = dict(
-            rel_beta        = 2.05, # Estimated to be 1.7–2.4-fold more transmissible than wild-type: https://science.sciencemag.org/content/early/2021/04/13/science.abh2644
-            rel_symp_prob   = 1.0,
-            rel_severe_prob = 2.6, # From https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2021.26.16.2100348
-            rel_crit_prob   = 1.0,
-            rel_death_prob  = 1.0,
-        ),
-
-        delta = dict(
-            rel_beta        = 2.2, # Estimated to be 1.25-1.6-fold more transmissible than B117: https://www.researchsquare.com/article/rs-637724/v1
-            rel_symp_prob   = 1.0,
-            rel_severe_prob = 3.2, # 2x more transmissible than alpha from https://mobile.twitter.com/dgurdasani1/status/1403293582279294983
-            rel_crit_prob   = 1.0,
-            rel_death_prob  = 1.0,
-        ),
-
-        omicron = dict(
-            rel_beta        = 2.5, # Made-up parameters. (Learned in calibration)
-            rel_symp_prob   = 1.0,
-            rel_severe_prob = 0.5,
-            rel_crit_prob   = 1.0,
-            rel_death_prob  = 1.0,
-        )
-    )
-
-    return _get_from_pars(pars, default, key=variant, defaultkey='wild')
-
-
-def get_cross_immunity(default=False, variant=None):
-    '''
-    Get the cross immunity between each variant in a sim
-    '''
-    pars = dict(
-
-        wild = dict(
-            wild  = 1.0, # Default for own-immunity
-            alpha = 0.5, # Assumption
-            beta  = 0.5, # https://www.nature.com/articles/s41586-021-03471-w
-            gamma = 0.34, # Assumption
-            delta = 0.374, # Assumption
-            omicron = 15/315 # https://www.medrxiv.org/content/10.1101/2021.12.24.21268317v6
-        ),
-
-        alpha = dict(
-            wild  = 0.5, # Assumption
-            alpha = 1.0, # Default for own-immunity
-            beta  = 0.8, # Assumption
-            gamma = 0.8, # Assumption
-            delta = 0.689,  # Assumption
-            omicron = 0.5*6/301 # https://www.medrxiv.org/content/10.1101/2021.12.24.21268317v6
-        ),
-
-        beta = dict(
-            wild  = 0.066, # https://www.nature.com/articles/s41586-021-03471-w
-            alpha = 0.5,   # Assumption
-            beta  = 1.0,   # Default for own-immunity
-            gamma = 0.5,   # Assumption
-            delta = 0.086,    # Assumption
-            omicron = 0.066*8/91 # https://www.medrxiv.org/content/10.1101/2021.12.24.21268317v6
-        ),
-
-        gamma = dict(
-            wild  = 0.34, # Previous (non-P.1) infection provides 54–79% of the protection against infection with P.1 that it provides against non-P.1 lineages: https://science.sciencemag.org/content/early/2021/04/13/science.abh2644
-            alpha = 0.4,  # Assumption based on the above
-            beta  = 0.4,  # Assumption based on the above
-            gamma = 1.0,  # Default for own-immunity
-            delta = 0.088,   # Assumption
-            omicron = 0.05 # ASSUMPTION
-        ),
-
-        delta = dict( # Parameters from https://www.cell.com/cell/fulltext/S0092-8674(21)00755-8
-            wild  = 0.374,
-            alpha = 0.689,
-            beta  = 0.086,
-            gamma = 0.088,
-            delta = 1.0, # Default for own-immunity
-            omicron = 0.374*42/464 # https://www.medrxiv.org/content/10.1101/2021.12.24.21268317v6
-        ),
-
-        omicron = dict(
-            wild  = 0.2, # ASSUMPTION
-            alpha = 0.2, # ASSUMPTION
-            beta  = 0.2, # ASSUMPTION
-            gamma = 0.2, # ASSUMPTION
-            delta = 28/46, # https://www.nature.com/articles/s41586-022-04830-x
-            omicron = 1.0 # Default for own-immunity
-        ),
-    )
-
-    return _get_from_pars(pars, default, key=variant, defaultkey='wild')
-
-
+    
 def get_vaccine_variant_pars(default=False, vaccine=None):
     '''
     Define the effectiveness of each vaccine against each variant

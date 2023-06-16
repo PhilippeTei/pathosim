@@ -11,10 +11,15 @@ class test_diseaseMortalityTests_COVID(unittest.TestCase):
         duration. Verify that everyone dies, no recoveries.
         """
         pop_size = 200
-        n_days = 90
-        sim = inf.Sim(pop_size=pop_size, pop_infected=pop_size, n_days=n_days, verbose = 0)
-        for key in ['rel_symp_prob', 'rel_severe_prob', 'rel_crit_prob', 'rel_death_prob']:
-            sim[key] = 1e6
+        pathogen = inf.SARS_COV_2(pop_size)
+        n_days = 90 
+        sim = inf.Sim(pop_size=pop_size, n_days=n_days, verbose = 0, pathogens = [pathogen]) 
+
+        sim.pathogens[0].rel_symp_prob = 1e6
+        sim.pathogens[0].rel_severe_prob = 1e6
+        sim.pathogens[0].rel_crit_prob = 1e6
+        sim.pathogens[0].rel_death_prob = 1e6
+         
         sim.run()
         #print(sim.people['n_infections'])
         assert sim.summary.cum_deaths == pop_size
@@ -26,15 +31,19 @@ class test_diseaseMortalityTests_COVID(unittest.TestCase):
         Should get 0 deaths, 22 severe cases and 2 critical cases
         """
         pop_size = 10000 
+        pathogen = inf.SARS_COV_2(pop_size)
         n_days = 10
         pars = dict(pop_size = pop_size, 
-                    n_days = n_days,
-                    enable_vl = True) 
-
+                    n_days = n_days ) 
+         
         #run simulation
-        sim = inf.Sim(pars=pars, pop_infected=pop_size, verbose = 0) 
-        for key in ['rel_symp_prob', 'rel_severe_prob', 'rel_crit_prob', 'rel_death_prob']:
-                    sim[key] = .2
+        sim = inf.Sim(pars=pars, verbose = 0, pathogens = [pathogen]) 
+        
+        sim.pathogens[0].rel_symp_prob = 0.2
+        sim.pathogens[0].rel_severe_prob =0.2
+        sim.pathogens[0].rel_crit_prob = 0.2
+        sim.pathogens[0].rel_death_prob = 0.2
+
         sim.run() 
 
         dead_expected = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]

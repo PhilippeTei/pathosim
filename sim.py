@@ -77,10 +77,11 @@ class Sim(cvb.BaseSim):
         self.results_ready = False    # Whether or not results are ready
         self._default_ver  = version  # Default version of parameters used
         self._legacy_trans = None     # Whether to use the legacy transmission calculation method (slower; for reproducing earlier results)
-        self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation
-
+        self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
+        self.initialized_pathogens = False
         self.TestScheduler = None
         
+
         #todo remove this later on
         if 'sp_people' in kwargs:
             print("sp_people is no longer a parameter, instead, SET people = BehaviourModel, NOT people = BehaviourModel.popdict")
@@ -103,6 +104,9 @@ class Sim(cvb.BaseSim):
         self.set_metadata(simfile) # Set the simulation date and filename
         self.update_pars(pars, **kwargs) # Update the parameters, if provided
         self.load_data(datafile) # Load the data, if provided
+        
+        self.pathogens = self.pars['pathogens']
+         
 
         # Process mult-region pars
         if self.pars['enable_multiregion']:
@@ -153,7 +157,7 @@ class Sim(cvb.BaseSim):
         self.t = 0  # The current time index
         self.validate_pars() # Ensure parameters have valid values
         self.set_seed() # Reset the random seed before the population is created
-        self.init_variants() # Initialize the variants
+        self.init_pathogens() 
         self.init_immunity() # initialize information about immunity (if use_waning=True)
         self.init_results() # After initializing the variant, create the results structure
 
@@ -288,7 +292,7 @@ class Sim(cvb.BaseSim):
                 self['pop_size'] = int(scaled_pop/pop_scale)
 
         # Handle types
-        for key in ['pop_size', 'pop_infected']:
+        for key in ['pop_size']:
             try:
                 self[key] = int(self[key])
             except Exception as E:
@@ -321,7 +325,7 @@ class Sim(cvb.BaseSim):
                 raise ValueError(errormsg)
 
         # Handle population data
-        popdata_choices = ['random', 'hybrid', 'clustered', 'synthpops', 'behaviour_module']
+        popdata_choices = ['random', 'behaviour_module']
         choice = self['pop_type']
         if choice and choice not in popdata_choices: # pragma: no cover
             choicestr = ', '.join(popdata_choices)
@@ -329,12 +333,11 @@ class Sim(cvb.BaseSim):
             raise ValueError(errormsg)
 
         # Handle interventions, analyzers, and variants
-        for key in ['interventions', 'analyzers', 'variants']: # Ensure all of them are lists
+        for key in ['interventions', 'analyzers']: # Ensure all of them are lists
             self[key] = sc.dcp(sc.tolist(self[key], keepnone=False)) # All of these have initialize functions that run into issues if they're reused
         for i,interv in enumerate(self['interventions']):
             if isinstance(interv, dict): # It's a dictionary representation of an intervention
-                self['interventions'][i] = cvi.InterventionDict(**interv)
-        self['variant_map'] = {int(k):v for k,v in self['variant_map'].items()} # Ensure keys are ints, not strings of ints if loaded from JSON
+                self['interventions'][i] = cvi.InterventionDict(**interv) 
 
         # Optionally handle layer parameters
         if validate_layers:
@@ -354,6 +357,19 @@ class Sim(cvb.BaseSim):
 
         return
 
+    def init_pathogens(self):
+
+        self.pars['n_pathogens'] = len(self.pars['pathogens'])
+        self['n_pathogens'] = self.pars['n_pathogens']
+
+        assert self.pars['n_pathogens'] >=1, f"No pathogens are given to the simulation!"
+         
+        #Initialize the variants 
+        for i in range(len(self.pathogens)): 
+            self.pathogens[i].initialize(self)
+          
+        self.initialized_pathogens = True
+         
 
     def init_results(self):
         '''
@@ -425,7 +441,7 @@ class Sim(cvb.BaseSim):
         self.results['cum_diagnoses_custom']      = init_res('Cumulative diagnoses with custom testing module')
 
         # Handle variants
-        nv = self['n_variants'][0]
+        nv = self.pathogens[0].n_variants #placeholder 0
         self.results['variant'] = {}
         self.results['variant']['prevalence_by_variant'] = init_res('Prevalence by variant', scale=False, n_variants=nv)
         self.results['variant']['incidence_by_variant']  = init_res('Incidence by variant', scale=False, n_variants=nv)
@@ -447,10 +463,6 @@ class Sim(cvb.BaseSim):
         self.results_ready   = False
 
         return
-
-
-    
-
 
     def init_people(self, popdict=None, init_infections=False, reset=False, verbose=None, **kwargs):
         '''
@@ -477,6 +489,9 @@ class Sim(cvb.BaseSim):
             if self.people:
                 resetstr = ' (resetting people)' if reset else ' (warning: not resetting sim.people)'
             print(f'Initializing sim{resetstr} with {self["pop_size"]:0n} people for {self["n_days"]} days')
+
+        if not self.initialized_pathogens:
+            self.init_pathogens()
 
         if self.popfile and self.popdict is None: # If we passed cv.popfile, load it into self.popdict
             self.popdict = cvm.load(self.popfile)
@@ -600,30 +615,7 @@ class Sim(cvb.BaseSim):
         for analyzer in self['analyzers']:
             if isinstance(analyzer, cva.Analyzer):
                 analyzer.finalize(self)
-
-
-    def init_variants(self):
-        ''' Initialize the variants ''' 
-        self['n_variants'] = np.full(self.pars['n_pathogens'],1, dtype = int)
-
-        if self._orig_pars and 'variants' in self._orig_pars:
-            self['variants'] = self._orig_pars.pop('variants') # Restore
-
-        for i,variant in enumerate(self['variants']):
-            if isinstance(variant, pat.Pathogen.Variant):
-                if not variant.initialized:
-                    variant.initialize(self)
-            else: # pragma: no cover
-                errormsg = f'Variant {i} ({variant}) is not a cv.variant object; please create using cv.variant()'
-                raise TypeError(errormsg)
-
-        len_pars = len(self['variant_pars'])
-        len_map = len(self['variant_map'])
-        assert len_pars == len_map, f"variant_pars and variant_map must be the same length, but they're not: {len_pars} ≠ {len_map}"
-        self['n_variants'][0] = len_pars # Each variant has an entry in variant_pars
-
-        return
-
+ 
 
     def init_immunity(self, create=False):
         ''' Initialize immunity matrices and precompute nab waning for each variant '''
@@ -632,7 +624,7 @@ class Sim(cvb.BaseSim):
         return
 
 
-    def init_infections(self, force=False, verbose=None, pathogen = 0):
+    def init_infections(self, force=False, verbose=None):
         '''
         Initialize prior immunity and seed infections.
 
@@ -662,14 +654,18 @@ class Sim(cvb.BaseSim):
             # Infect, based on parameters.
             regs2inf = self.pars['multiregion']['region_seed_infections']
 
+            if (not isinstance(regs2inf[0], list)):
+                print("Multi-pathogen simulation with multi-region enabled requires region_seed_infections to contain arrays of length: number of pathogens in the simulation ") #TODO change that to be in the pathogen class
+                 
             i_reg = 0
             for reg in regs2inf:
-                # Create the seed infections
-                reg_start = self.rstarts[i_reg]
-                reg_size = self.rsizes[i_reg]
-                # Choose, without replacement, the appropriate # people. Then, offset to get their actual UIDs. 
-                inds = cvu.choose(reg_size, regs2inf[reg]) + reg_start
-                self.people.infect(inds=inds, layer='seed_infection', pathogen_index = pathogen) # Not counted by results 
+                for i in range(len(reg)):
+                    # Create the seed infections
+                    reg_start = self.rstarts[i_reg]
+                    reg_size = self.rsizes[i_reg]
+                    # Choose, without replacement, the appropriate # people. Then, offset to get their actual UIDs. 
+                    inds = cvu.choose(reg_size, regs2inf[reg, i]) + reg_start
+                    self.people.infect(inds=inds, layer='seed_infection', pathogen_index = i) # Not counted by results 
                 i_reg += 1
         
         return
@@ -686,10 +682,11 @@ class Sim(cvb.BaseSim):
                 inds = cvu.choose(self['pop_size'], np.round((1-self['frac_susceptible'])*self['pop_size']))
                 self.people.make_nonnaive(inds=inds)
 
-            # Create the seed infections
-            if self['pop_infected']:
-                inds = cvu.choose(self['pop_size'], self['pop_infected'])
-                self.people.infect(inds=inds, layer='seed_infection') # Not counted by results since flows are re-initialized during the step
+            for i in range(len(self.pathogens)):
+                # Create the seed infections
+                if self.pathogens[i].pop_infected != 0:
+                    inds = cvu.choose(self['pop_size'], self.pathogens[i].pop_infected)
+                    self.people.infect(inds=inds, layer='seed_infection', pathogen_index = i) # Not counted by results since flows are re-initialized during the step
 
         elif verbose:
             print(f'People already initialized with {self.people.count_not("naive")} people non-naive and {self.people.count("exposed")} exposed; not reinitializing')
@@ -732,12 +729,11 @@ class Sim(cvb.BaseSim):
             raise AlreadyRunError('Simulation already complete (call sim.initialize() to re-run)')
 
         t = self.t
-
-
+        
         # If it's the first timestep, infect people
         if t == 0:
             self.init_infections(verbose=False)
-
+            
         # Perform initial operations
         self.rescale() # Check if we need to rescale
         people = self.people # Shorten this for later use
@@ -747,49 +743,39 @@ class Sim(cvb.BaseSim):
         contacts = people.update_contacts() # Compute new contacts. For dynamic contacts. 
         hosp_max = people.count('severe')   > self['n_beds_hosp'] if self['n_beds_hosp'] is not None else False # Check for acute bed constraint
         icu_max  = people.count('critical') > self['n_beds_icu']  if self['n_beds_icu']  is not None else False # Check for ICU bed constraint
-
+        
         # Randomly infect some people (imported infections)
-        if self['n_imports']:
+        if self.pathogens[current_pathogen].n_imports:
             n_imports = cvu.poisson(self['n_imports']/self.rescale_vec[self.t]) # Imported cases
             if n_imports>0:
                 importation_inds = cvu.choose(max_n=self['pop_size'], n=n_imports)
                 people.infect(inds=importation_inds, hosp_max=hosp_max, icu_max=icu_max, layer='importation', pathogen_index = current_pathogen)
                 self.results['n_imports'][t] += n_imports
-
+                
         # Add variants
-        for variant in self['variants']:
+        for variant in self.pathogens[current_pathogen].variants:
             if isinstance(variant, pat.Pathogen.Variant):
                 variant.apply(self)
-
+                
         # Sent smartwatch alerts and update alert histories
         if self.pars['enable_smartwatches']:
             self.people.watches.send_alerts_baseline(self)
             self.people.watches.send_alerts_infected(self)
             self.people.watches.update_alert_histories(self)
-
-        # # Apply interventions
+            
         # for i,intervention in enumerate(self['interventions']):
         #     intervention(self) # If it's a function, call it directly
 
         # Compute viral loads
-        if not self.pars['enable_vl']:
-            frac_time = cvd.default_float(self['viral_dist']['frac_time'])
-            load_ratio = cvd.default_float(self['viral_dist']['load_ratio'])
-            high_cap = cvd.default_float(self['viral_dist']['high_cap'])
-            date_inf = people.date_p_infectious[current_pathogen]
-            date_rec = people.date_p_recovered[current_pathogen]
-            date_dead = people.date_p_dead[current_pathogen]
+         
+        x_p1, y_p1 = people.x_p1[current_pathogen], people.y_p1[current_pathogen]
+        x_p2, y_p2 = people.x_p2[current_pathogen], people.y_p2[current_pathogen]
+        x_p3, y_p3 = people.x_p3[current_pathogen], people.y_p3[current_pathogen]
+        min_vl = cvd.default_float(self.pathogens[current_pathogen].viral_levels['min_vl'])
+        max_vl = cvd.default_float(self.pathogens[current_pathogen].viral_levels['max_vl'])
 
-            viral_load = cvu.compute_viral_load_old(t, date_inf, date_rec, date_dead, frac_time, load_ratio, high_cap)
-        else:
-            x_p1, y_p1 = people.x_p1[current_pathogen], people.y_p1[current_pathogen]
-            x_p2, y_p2 = people.x_p2[current_pathogen], people.y_p2[current_pathogen]
-            x_p3, y_p3 = people.x_p3[current_pathogen], people.y_p3[current_pathogen]
-            min_vl = cvd.default_float(self['viral_levels']['min_vl'])
-            max_vl = cvd.default_float(self['viral_levels']['max_vl'])
-
-            people.viral_load[current_pathogen], viral_load = cvu.compute_viral_load(t, x_p1, y_p1, x_p2, y_p2, x_p3, y_p3, min_vl, max_vl)
-
+        people.viral_load[current_pathogen], viral_load = cvu.compute_viral_load(t, x_p1, y_p1, x_p2, y_p2, x_p3, y_p3, min_vl, max_vl)
+        
         # # For testing purposes
         # if t < self.pars['vl_trajs'].shape[1]:
         #     record_inds = np.concatenate([np.where(people.exposed == True)[0] , np.where(people.recovered == True)[0]])
@@ -799,7 +785,7 @@ class Sim(cvb.BaseSim):
         if self.pars['enable_testobjs']:  # Discussion
 
             # Determine background ILI infections
-            bkg_ILI.infect_ILI(self)
+            bkg_ILI.infect_ILI(self, current_pathogen)
 
             # Distribute symptoms and apply prevalence multipliers
             if t == 0: 
@@ -831,6 +817,7 @@ class Sim(cvb.BaseSim):
                 self.results['new_diagnoses_custom'][t] += sum(testobj.date_positive == t)
                 self.results['cum_diagnoses_custom'][t] += sum(self.results['new_diagnoses_custom'][:t])
 
+        
         # Apply interventions
         for i,intervention in enumerate(self['interventions']):
             intervention(self) # If it's a function, call it directly
@@ -838,12 +825,12 @@ class Sim(cvb.BaseSim):
         # Toggle behaviour
         if self['enable_behaviour']:
             people.schedule_behaviour(self['behaviour_pars'])
-
+            
         # Implement state changes relating to quarantine and isolation/diagnosis; compute associated statistics
         people.update_states_post(pathogen = current_pathogen)
 
         # Shorten useful parameters
-        nv = self['n_variants'][current_pathogen] # variants of CURRENT PATHOGEN
+        nv = self.pathogens[current_pathogen].n_variants # variants of CURRENT PATHOGEN
         sus = people.p_susceptible[current_pathogen]
         symp = people.p_symptomatic[current_pathogen]
         diag = people.p_diagnosed[current_pathogen]
@@ -859,12 +846,13 @@ class Sim(cvb.BaseSim):
                 cvimm.check_immunity(people, variant, current_pathogen)
 
             # Deal with variant parameters
-            rel_beta = self['rel_beta']
-            asymp_factor = self['asymp_factor']
-            if variant:
-                variant_label = self.pars['variant_map'][variant]
-                rel_beta *= self['variant_pars'][variant_label]['rel_beta']
-            beta = cvd.default_float(self['beta'] * rel_beta)
+            rel_beta = 1
+            asymp_factor = self.pathogens[current_pathogen].asymp_factor
+            if variant: 
+                if variant != 0: #if not wild type, multiply by variant rel_beta
+                    rel_beta *= self.pathogens[current_pathogen].variants[variant-1].p['rel_beta'] 
+
+            beta = cvd.default_float(self.pathogens[current_pathogen].beta * rel_beta)
 
             for lkey, layer in contacts.items():
                 p1 = layer['p1']
@@ -934,7 +922,7 @@ class Sim(cvb.BaseSim):
 
     def update_results_mr(self, people, pathogen = 0):
         t = self.t
-        nv = self['n_variants'][pathogen]
+        nv = self.pathogens[pathogen].n_variants
 
         for rname, rstart, rsize in zip(self.rnames, self.rstarts, self.rsizes):
             for key in cvd.result_stocks.keys():
@@ -1029,8 +1017,7 @@ class Sim(cvb.BaseSim):
         '''
 
         # Initialization steps -- start the timer, initialize the sim and the seed, and check that the sim hasn't been run
-        T = sc.timer()
-
+        T = sc.timer() 
         if not self.initialized:
             self.initialize()
             self._orig_pars = sc.dcp(self.pars) # Create a copy of the parameters, to restore after the run, in case they are dynamically modified
@@ -1056,7 +1043,7 @@ class Sim(cvb.BaseSim):
             errormsg = f'The simulation has been run independently from the people (t={self.t}, people.t={self.people.t}): if this is intentional, manually set sim.people.t = sim.t. Remember to save the people object before running the sim.'
         if errormsg:
             raise AlreadyRunError(errormsg)
-
+         
         # Main simulation loop
         while self.t < until:
 
@@ -1078,9 +1065,9 @@ class Sim(cvb.BaseSim):
                 elif verbose>0:
                     if not (self.t % int(1.0/verbose)):
                         sc.progressbar(self.t+1, self.npts, label=string, length=20, newline=True)
-
+                        
             # Do the heavy lifting -- actually run the model!
-            self.step() 
+            self.step()  
             self.validate_people_states()
 
         # If simulation reached the end, finalize the results
@@ -1162,10 +1149,10 @@ class Sim(cvb.BaseSim):
         for key in cvd.result_flows.keys():
             self.results[f'cum_{key}'][:] = np.cumsum(self.results[f'new_{key}'][:], axis=0)
         for key in cvd.result_flows_by_variant.keys():
-            for variant in range(self['n_variants'][0]):
+            for variant in range(self.pathogens[0].n_variants):
                 self.results['variant'][f'cum_{key}'][variant, :] = np.cumsum(self.results['variant'][f'new_{key}'][variant, :], axis=0)
         for res in [self.results['cum_infections'], self.results['variant']['cum_infections_by_variant']]: # Include initially infected people
-            res.values += self['pop_infected']*self.rescale_vec[0]
+            res.values += self.pathogens[0].pop_infected*self.rescale_vec[0]
 
         # Finalize interventions and analyzers
         self.finalize_interventions()
@@ -1322,7 +1309,7 @@ class Sim(cvb.BaseSim):
 
             # Handle smoothing, including with too-short arrays
             len_raw = len(raw_values) # Calculate the number of raw values
-            dur_pars = self['dur'][0] if isinstance(self['dur'], list) else self['dur'] # Note: does not take variants into account
+            dur_pars = self.pathogens[pathogen].dur[0] if isinstance(self.pathogens[pathogen].dur, list) else self.pathogens[pathogen].dur # Note: does not take variants into account
             if len_raw >= 3: # Can't smooth arrays shorter than this since the default smoothing kernel has length 3
                 initial_period = dur_pars['exp2inf']['par1'] + dur_pars['asym2rec']['par1'] # Approximate the duration of the seed infections for averaging
                 initial_period = int(min(len_raw, initial_period)) # Ensure we don't have too many points
@@ -1903,8 +1890,7 @@ def demo(preset=None, to_plot=None, scens=None, run_args=None, plot_args=None, *
 
             # Define the parameters
             pars = dict(
-                pop_size      = 20e3,         # Population size
-                pop_infected  = 100,          # Number of initial infections -- use more for increased robustness
+                pop_size      = 20e3,         # Population size 
                 pop_type      = 'hybrid',     # Population to use -- "hybrid" is random with household, school,and work structure
                 n_days        = 60,           # Number of days to simulate
                 verbose       = 0,            # Don't print details of the run

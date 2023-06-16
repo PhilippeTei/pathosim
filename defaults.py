@@ -81,29 +81,29 @@ class PeopleMeta(sc.prettyobj):
             'alerted',       # Used to denote that a smartwatch alert was received on the current day; date_alerted refers to the date last alerted
         ]
 
-        #Pathogen states, each field is an array for each pathogen  
+        #Each field would be initialized as an matrix NxK where N is the number of pathogens in the simulation, K is the number of agens in the simulation  
         self.pathogen_states = [
-            'p_susceptible',
-            'p_naive',
-            'p_exposed',
-            'p_infectious',
-            'p_symptomatic',
-            'p_severe',
-            'p_critical',
-            'p_tested',
-            'p_diagnosed',
-            'p_recovered', 
-            'p_dead',    
+            'p_susceptible',    #susceptible with a specific pathogen
+            'p_naive',          #naive for a specific pathogen
+            'p_exposed',        #exposed by a specific pathogen
+            'p_infectious',     #infectious with a specific pathogen
+            'p_symptomatic',    #symptomatic with a specific pathogen
+            'p_severe',         #severe symptoms due to a specific pathogen
+            'p_critical',       #in critical condition caused by specific pathogen
+            'p_tested',         #tested for a specific pathogen
+            'p_diagnosed',      #diagnosed for a specific pathogen
+            'p_recovered',      #recovered after infectious with a specific pathogen
+            'p_dead',           #dead due to a specific pathogen
         ]
         
-        #Pathogen variants states, each field is an array for each pathogen
+        #Information on variants of pathogens (variant states).
         self.pathogen_variants =[
-            'p_exposed_variant', #2D array of the variant number (of that pathogen) that everyone's infected by. For 10 ppl: [0,1,0,1,1,0,2,0,0,3]
-            'p_infectious_variant',
-            'p_recovered_variant',
+            'p_exposed_variant',    #exposed to variant: matrix NxK, int
+            'p_infectious_variant', #infectious with variant: matrix NxK, int
+            'p_recovered_variant',  #recovered from variant: matrix NxK, int
 
-            'p_exposed_by_variant',# Variant states -- rows: variant, columns: True or False; pop_size columns.
-            'p_infectious_by_variant',# Variant states -- rows: variant, columns: True or False; pop_size columns.
+            'p_exposed_by_variant',     #Records of exposed to a variant: matrix NxNkxK
+            'p_infectious_by_variant',  #Records of infectiou with variant: matrix NxNkxK
 ]
 
          

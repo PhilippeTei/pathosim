@@ -76,7 +76,10 @@ class People(cvb.BasePeople):
         self.infection_log = [] # Record of infections - keys for ['source','target','date','layer']
         self.stratifications = None # Gets updated in sim.py : initialize() 
         
-        max_variants = np.max(self.pars['n_variants'])
+        variantNums = []
+        for p in self.pars['pathogens']:
+            variantNums.append(len(p.variants)+1)
+        max_variants = np.max(variantNums)
 
         # Set person properties -- all floats except for UID
         for key in self.meta.person:
@@ -210,7 +213,7 @@ class People(cvb.BasePeople):
         self.flows = {key:0 for key in cvd.new_result_flows}
         self.flows_variant = {}
         for key in cvd.new_result_flows_by_variant:
-            self.flows_variant[key] = np.zeros(self.pars['n_variants'][0], dtype=cvd.default_float)
+            self.flows_variant[key] = np.zeros(self.pars['pathogens'][0].n_variants, dtype=cvd.default_float)
         if self.pars['enable_smartwatches']:
             for key in cvd.new_result_flows_smartwatches:
                 self.flows[key] = 0
@@ -240,11 +243,7 @@ class People(cvb.BasePeople):
         to reset the seed because viral loads are drawn stochastically.
         '''
 
-        pars = self.pars # Shorten
-        if 'prognoses' not in pars or 'rand_seed' not in pars:
-            errormsg = 'This people object does not have the required parameters ("prognoses" and "rand_seed"). Create a sim (or parameters), then do e.g. people.set_pars(sim.pars).'
-            raise sc.KeyNotFoundError(errormsg)
-
+        pars = self.pars # Shorten 
         def find_cutoff(age_cutoffs, age):
             '''
             Find which age bin each person belongs to -- e.g. with standard
@@ -256,14 +255,14 @@ class People(cvb.BasePeople):
 
         cvu.set_seed(pars['rand_seed'])
 
-        progs = pars['prognoses'] # Shorten the name
+        progs = pars['pathogens'][pathogen].prognoses
         inds = np.fromiter((find_cutoff(progs['age_cutoffs'], this_age) for this_age in self.age), dtype=cvd.default_int, count=len(self)) # Convert ages to indices
         self.symp_prob[pathogen,:]   = progs['symp_probs'][inds] # Probability of developing symptoms
         self.severe_prob[pathogen,:] = progs['severe_probs'][inds]*progs['comorbidities'][inds] # Severe disease probability is modified by comorbidities
         self.crit_prob[pathogen,:]   = progs['crit_probs'][inds] # Probability of developing critical disease
         self.death_prob[pathogen,:]  = progs['death_probs'][inds] # Probability of death
-        self.rel_sus[pathogen,:]     = progs['sus_ORs'][inds]  # Default susceptibilities
-        self.rel_trans[pathogen,:]   = progs['trans_ORs'][inds] * cvu.sample(**self.pars['beta_dist'], size=len(inds))  # Default transmissibilities, with viral load drawn from a distribution
+        self.rel_sus[pathogen,:]     = progs['sus_ORs'][inds]  # Default susceptibilities 
+        self.rel_trans[pathogen,:]   = progs['trans_ORs'][inds] * cvu.sample(**self.pars['pathogens'][pathogen].beta_dist, size=len(inds))  # Default transmissibilities, with viral load drawn from a distribution
 
         return
 
@@ -321,7 +320,7 @@ class People(cvb.BasePeople):
         self.flows['new_deaths']        += new_deaths
         self.flows['new_known_deaths']  += new_known_deaths
 
-        self.merge_states(self.pars['n_pathogens'], False, None, False)
+        self.merge_states(self.pars['n_pathogens'], False, False)
         return
 
 
@@ -515,7 +514,7 @@ class People(cvb.BasePeople):
         #TODO change n_variants to be an array of values for each pathogen
         # for variant in range(self.pars['n_variants'][pathogen]):
 
-        for variant in range(self.pars['n_variants'][pathogen]):
+        for variant in range(self.pars['pathogens'][pathogen].n_variants):
             this_variant_inds = cvu.itrue(self.p_infectious_variant[pathogen, inds] == variant, inds)
             n_this_variant_inds = len(this_variant_inds)
             self.flows_variant['new_infectious_by_variant'][variant] += n_this_variant_inds
@@ -740,7 +739,7 @@ class People(cvb.BasePeople):
         test_pos_inds = self.check_inds(self.diagnosed, self.date_pos_test, filter_inds=None) # Find people who are not diagnosed and have a date of a positive test that is today or earlier
 
         # Update per variant. (Written 31-05-23)
-        for variant in range(self.pars['n_variants'][pathogen]):
+        for variant in range(self.pars['pathogens'][pathogen].n_variants):
             # Get the people who are exposed for this variant, and have a positive test. 
             # TODO: exposed_variant ok? 
             var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
@@ -806,7 +805,7 @@ class People(cvb.BasePeople):
         self.date_pos_test[test_pos_inds] = np.nan # Clear date of having will-be-positive test
 
         # Update per variant. (Written 31-05-23)
-        for variant in range(self.pars['n_variants'][pathogen]):
+        for variant in range(self.pars['pathogens'][pathogen].n_variants):
             # Get the people who are exposed for this variant, and have a positive test. 
             # TODO: exposed_variant ok? 
             var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
@@ -991,7 +990,6 @@ class People(cvb.BasePeople):
         Returns:
             count (int): number of people infected
         '''
-
         if len(inds) == 0:
             return 0
 
@@ -999,31 +997,36 @@ class People(cvb.BasePeople):
         inds, unique = np.unique(inds, return_index=True)
         if source is not None:
             source = source[unique]
-
+            
         # Keep only susceptibles
         keep = self.p_susceptible[pathogen_index,inds] # Unique indices in inds and source that are also susceptible
         inds = inds[keep]
         if source is not None:
             source = source[keep]
-
+            
         # Deal with variant parameters
         variant_keys = ['rel_symp_prob', 'rel_severe_prob', 'rel_crit_prob', 'rel_death_prob']
-        infect_pars = {k:self.pars[k] for k in variant_keys}
-        variant_label = self.pars['variant_map'][variant]
-        if variant:
+        infect_pars = {
+           'rel_symp_prob':self.pars['pathogens'][pathogen_index].rel_symp_prob,
+           'rel_severe_prob':self.pars['pathogens'][pathogen_index].rel_severe_prob,
+           'rel_crit_prob':self.pars['pathogens'][pathogen_index].rel_crit_prob,
+           'rel_death_prob':self.pars['pathogens'][pathogen_index].rel_death_prob}
+        
+        variant_label =self.pars['pathogens'][pathogen_index].get_variants_labels()[variant]
+        if variant!=0:
             for k in variant_keys:
-                infect_pars[k] *= self.pars['variant_pars'][variant_label][k]
+                infect_pars[k] *= self.pars['pathogens'][pathogen_index].variants[variant-1].p[k] 
 
         n_infections = len(inds)
-        durpars      = self.pars['dur']
-
+        durpars      = self.pars['pathogens'][pathogen_index].dur
+        
         # Retrieve those with a breakthrough infection (defined nabs)
         breakthrough_inds = inds[cvu.true(self.peak_nab[pathogen_index,inds])]
         if len(breakthrough_inds):
             no_prior_breakthrough = (self.n_breakthroughs[pathogen_index, breakthrough_inds] == 0) # We only adjust transmissibility for the first breakthrough
             new_breakthrough_inds = breakthrough_inds[no_prior_breakthrough]
-            self.rel_trans[pathogen_index, new_breakthrough_inds] *= self.pars['trans_redux']
-
+            self.rel_trans[pathogen_index, new_breakthrough_inds] *= self.pars['pathogens'][pathogen_index].trans_redux
+            
         # Update states, variant info, and flows 
         self.p_susceptible[pathogen_index, inds]    = False
         self.p_naive[pathogen_index, inds]          = False
@@ -1037,17 +1040,16 @@ class People(cvb.BasePeople):
         self.p_exposed_variant[pathogen_index, inds] = variant
         self.p_exposed_by_variant[pathogen_index,variant, inds] = True
          
-
         #TODO change that to multipathogen
         self.flows['new_infections']   += len(inds)
         self.flows['new_reinfections'] += len(cvu.defined(self.date_p_recovered[pathogen_index, inds])) # Record reinfections
         self.flows_variant['new_infections_by_variant'][variant] += len(inds)
-
+        
         # Record transmissions
         for i, target in enumerate(inds):
             entry = dict(source=source[i] if source is not None else None, target=target, date=self.t, layer=layer, variant=variant_label)
             self.infection_log.append(entry)
-
+            
         # Calculate how long before this person can infect other people
         self.dur_exp2inf[pathogen_index, inds] = cvu.sample(**durpars['exp2inf'], size=n_infections)
         
@@ -1124,30 +1126,30 @@ class People(cvb.BasePeople):
        
         self.date_p_recovered[pathogen_index,dead_inds] = np.nan # If they did die, remove them from recovered
         # HANDLE VIRAL LOAD CONTROL POINTS
-        if self.pars['enable_vl']:
-            # Get P_inf: where viral load crosses 10^6 cp/mL
-            self.x_p_inf[pathogen_index,inds] = self.dur_exp2inf[pathogen_index, inds]
-            self.y_p_inf[pathogen_index,inds] = 6
+       
+        # Get P_inf: where viral load crosses 10^6 cp/mL
+        self.x_p_inf[pathogen_index,inds] = self.dur_exp2inf[pathogen_index, inds]
+        self.y_p_inf[pathogen_index,inds] = 6
 
-            # Get P1: where viral load crosses 10^3 cp/mL; time difference obtained empirically through simulation
-            self.x_p1[pathogen_index,inds] = np.maximum(self.x_p_inf[pathogen_index,inds] - (np.random.gamma(2, 0.35, size=len(inds)) + 0.25), 0)
-            self.y_p1[pathogen_index,inds] = 3
+        # Get P1: where viral load crosses 10^3 cp/mL; time difference obtained empirically through simulation
+        self.x_p1[pathogen_index,inds] = np.maximum(self.x_p_inf[pathogen_index,inds] - (np.random.gamma(2, 0.35, size=len(inds)) + 0.25), 0)
+        self.y_p1[pathogen_index,inds] = 3
 
-            # Get P2: where viral load peaks; time difference obtained empirically through simulation
-            self.x_p2[pathogen_index,inds] = self.x_p_inf[pathogen_index,inds] + (np.random.gamma(3, 0.26, size=len(inds)) + 0.1)
-            self.y_p2[pathogen_index,inds] = ((self.y_p_inf[pathogen_index,inds] - self.y_p1[pathogen_index,inds])*(self.x_p2[pathogen_index,inds] - self.x_p1[pathogen_index,inds])/(self.x_p_inf[pathogen_index,inds] - self.x_p1[pathogen_index,inds])) + self.y_p1[pathogen_index,inds]
+        # Get P2: where viral load peaks; time difference obtained empirically through simulation
+        self.x_p2[pathogen_index,inds] = self.x_p_inf[pathogen_index,inds] + (np.random.gamma(3, 0.26, size=len(inds)) + 0.1)
+        self.y_p2[pathogen_index,inds] = ((self.y_p_inf[pathogen_index,inds] - self.y_p1[pathogen_index,inds])*(self.x_p2[pathogen_index,inds] - self.x_p1[pathogen_index,inds])/(self.x_p_inf[pathogen_index,inds] - self.x_p1[pathogen_index,inds])) + self.y_p1[pathogen_index,inds]
 
-            # Align P1, P_inf, and P2 to current time
-            self.x_p1[pathogen_index,inds] = self.x_p1[pathogen_index,inds] + self.t
-            self.x_p_inf[pathogen_index,inds] = self.x_p_inf[pathogen_index,inds] + self.t
-            self.x_p2[pathogen_index,inds] = self.x_p2[pathogen_index,inds] + self.t
+        # Align P1, P_inf, and P2 to current time
+        self.x_p1[pathogen_index,inds] = self.x_p1[pathogen_index,inds] + self.t
+        self.x_p_inf[pathogen_index,inds] = self.x_p_inf[pathogen_index,inds] + self.t
+        self.x_p2[pathogen_index,inds] = self.x_p2[pathogen_index,inds] + self.t
 
-            # Get P3: where viral load drops below 10^6 cp/mL
-            time_recovered = np.ones(len(self.date_p_recovered[pathogen_index]), dtype=cvd.default_float)*self.date_p_recovered[pathogen_index] # This is needed to make a copy
-            inds_dead = ~np.isnan(self.date_dead)
-            time_recovered[inds_dead] = self.date_dead[inds_dead]
-            self.x_p3[pathogen_index,inds] = np.maximum(time_recovered[inds], self.x_p2[pathogen_index,inds])
-            self.y_p3[pathogen_index,inds] = 6
+        # Get P3: where viral load drops below 10^6 cp/mL
+        time_recovered = np.ones(len(self.date_p_recovered[pathogen_index]), dtype=cvd.default_float)*self.date_p_recovered[pathogen_index] # This is needed to make a copy
+        inds_dead = ~np.isnan(self.date_dead)
+        time_recovered[inds_dead] = self.date_dead[inds_dead]
+        self.x_p3[pathogen_index,inds] = np.maximum(time_recovered[inds], self.x_p2[pathogen_index,inds])
+        self.y_p3[pathogen_index,inds] = 6
 
             # # For testing purposes
             # if self.t < self.pars['x_p1'].shape[1]:
@@ -1159,15 +1161,15 @@ class People(cvb.BasePeople):
             #     self.pars['y_p_inf'][:, self.t] = self.y_p_inf
             #     self.pars['y_p2'][:, self.t] = self.y_p2
             #     self.pars['y_p3'][:, self.t] = self.y_p3
-        self.merge_states(self.pars['n_pathogens'], False, inds, True)
+        self.merge_states(self.pars['n_pathogens'], False, True)
         # Handle immunity aspects
         if self.pars['use_waning']:
             symp = dict(asymp=asymp_inds, mild=mild_inds, sev=sev_inds)
-            cvi.update_peak_nab(self, inds, nab_pars=self.pars, symp=symp)
+            cvi.update_peak_nab(self, inds, nab_pars=self.pars['pathogens'][pathogen_index], symp=symp)
 
         return n_infections # For incrementing counters
 
-    def merge_states(self, n_pathogens, debug, inds, merge_dates):
+    def merge_states(self, n_pathogens, debug, merge_dates):
         '''
         Method to merge the pathogen disease states into an overral state for the person, used in interventions... 
         Not to be called by the user directly; 
@@ -1213,41 +1215,22 @@ class People(cvb.BasePeople):
             for state in states_to_merge_with_AND:
                 inds_with_state = np.logical_not(self[f'p_{state}'][i]).nonzero()[0] 
                 self[f'{state}'][inds_with_state] = False 
-
-        # for state in states_to_merge_with_OR:
+                 
         if merge_dates:
             for state in states_to_merge_with_OR+states_to_merge_with_AND:
-                self.set_overral_state_date(state, n_pathogens, inds, True if state in states_to_merge_with_OR else False)
-            #self[f'date_{state}'] = self[f'date_p_{state}'][0]
-           # for state in states_to_merge_with_AND:
-               # self[f'date_{state}'] = np.fmax(self[f'date_p_{state}'][i], self[f'date_{state}'])
+                self.set_overral_state_date(state, n_pathogens, True if state in states_to_merge_with_OR else False) 
 
 
                  
   
-    def set_overral_state_date(self, state_key, n_pathogens, inds, useMin = True): 
-        #self[f'date_{state_key}'] = self[f'date_p_{state_key}'][0] 
-        #v = np.full(self.pars['pop_size'], 1000000., dtype=cvd.default_float)
-
-        #if inds == None:
-            #inds = range(self.pars['pop_size'])
-        import math
-
+    def set_overral_state_date(self, state_key, n_pathogens, useMin = True):   
         v = self[f'date_p_{state_key}'][0]
         for i in range(n_pathogens): 
-            if(useMin):
-                #v = np.fmin(v, self[f'date_p_{state_key}'][0])
-                #v = np.fmin(v, self[f'date_p_{state_key}'][i])
+            if(useMin): 
                 v = cvu.custom_np_fmin(self[f'date_p_{state_key}'][i], v, size = self.pars['pop_size'])
-            else:
-                #v = np.maximum(self[f'date_p_{state_key}'][i], v)
-                #v = self[f'date_p_{state_key}'][i]
+            else: 
                 v = cvu.custom_np_fmax(self[f'date_p_{state_key}'][i], v, size = self.pars['pop_size'])
-        
-        #if(np.array_equal(v, self[f'date_p_{state_key}'][0], equal_nan = True) == False):
-            
-         #   print(v, self[f'date_p_{state_key}'][0])
-          #  raise Exception()
+         
         self[f'date_{state_key}'] = v
              
 

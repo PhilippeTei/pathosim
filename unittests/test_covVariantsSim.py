@@ -11,11 +11,9 @@ full_path = os.path.join(absolute_path, relative_path)
 
 simPars = {
             'pop_size': 1000,
-            'n_days': 120,
-            'pop_infected': 20,
+            'n_days': 120, 
             'rand_seed' : 0,
-            'verbose':0,
-            'enable_vl':True
+            'verbose':0 
         }
 
 result_keys = [ 
@@ -28,11 +26,13 @@ result_keys = [
 class test_covVariantsSim(unittest.TestCase):
     
     def test_oneVariant(self): 
-        alpha  = inf.Pathogen.Variant('alpha', days=5, n_imports=10)  
         
-        sim = inf.Sim(simPars, variants=[alpha]) 
+        pathogen = inf.SARS_COV_2(20)
+        pathogen.add_existing_variant('alpha', days=5, n_imports=10) 
+         
+        sim = inf.Sim(simPars, pathogens = [pathogen]) 
         sim.run()
-
+         
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline')  
             self.assertEqual(True if expected_result==sim.results[k] else False, True)
@@ -42,37 +42,47 @@ class test_covVariantsSim(unittest.TestCase):
               #  print('---------------')
     
     def test_multiVariants(self): 
-        alpha  = inf.Pathogen.Variant('alpha', days=0, n_imports=10)
-        beta   = inf.Pathogen.Variant('beta', days=10, n_imports=10)
-        omicron   = inf.Pathogen.Variant('omicron', days=30, n_imports=15)
-        custom = inf.Pathogen.Variant(label='3x more transmissible', variant={'rel_beta': 3.0}, days=60, n_imports=20)
-        
-        sim = inf.Sim(simPars, variants=[alpha, beta, omicron, custom]) 
+        pathogen = inf.SARS_COV_2(20)
+
+        pathogen.add_existing_variant('alpha', days=0, n_imports=10)
+        pathogen.add_existing_variant('beta', days=10, n_imports=10)
+        pathogen.add_existing_variant('omicron', days=30, n_imports=15)
+        pathogen.add_custom_variant(label='3x more transmissible', rel_beta = 3.0, days=60, n_imports=20)
+         
+        sim = inf.Sim(simPars, pathogens = [pathogen]) 
         sim.run()
 
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_multiVariant_{k}.baseline')  
+            if not expected_result==sim.results[k]:
+                print(expected_result)
+                print("___________")
+                print(sim.results[k])
             self.assertEqual(True if expected_result==sim.results[k] else False, True)
 
                  
 
 def generate_baseline():
     
-    alpha  = inf.Pathogen.Variant('alpha', days=5, n_imports=10)
+    pathogen = inf.SARS_COV_2(20)
     
-    sim = inf.Sim(simPars, variants=[alpha]) 
+    pathogen.add_existing_variant('alpha', days=5, n_imports=10) 
+         
+    sim = inf.Sim(simPars, pathogens = [pathogen]) 
     sim.run() 
     
     for k in result_keys:
         sc.saveobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline', sim.results[k]) 
         
-
-    alpha  = inf.Pathogen.Variant('alpha', days=0, n_imports=10)
-    beta   = inf.Pathogen.Variant('beta', days=10, n_imports=10)
-    omicron   = inf.Pathogen.Variant('omicron', days=30, n_imports=15)
-    custom = inf.Pathogen.Variant(label='3x more transmissible', variant={'rel_beta': 3.0}, days=60, n_imports=20)
+    
+    pathogen = inf.SARS_COV_2(20)
+     
+    pathogen.add_existing_variant('alpha', days=0, n_imports=10)
+    pathogen.add_existing_variant('beta', days=10, n_imports=10)
+    pathogen.add_existing_variant('omicron', days=30, n_imports=15)
+    pathogen.add_custom_variant(label='3x more transmissible', rel_beta = 3.0, days=60, n_imports=20)
         
-    sim = inf.Sim(simPars, variants=[alpha, beta, omicron, custom]) 
+    sim = inf.Sim(simPars, pathogens = [pathogen]) 
     sim.run() 
 
     for k in result_keys:

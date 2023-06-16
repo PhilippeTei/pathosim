@@ -41,7 +41,7 @@ def update_peak_nab(people, inds, nab_pars, symp=None, pathogen = 0):
 
     # 1) Individuals that already have NAbs from a previous vaccination/infection have their NAb level boosted
     if len(prior_nab_inds):
-        boost_factor = nab_pars['nab_boost']
+        boost_factor = nab_pars.nab_boost
         people.peak_nab[pathogen,prior_nab_inds] *= boost_factor
 
 
@@ -49,12 +49,12 @@ def update_peak_nab(people, inds, nab_pars, symp=None, pathogen = 0):
     if len(no_prior_nab_inds):
 
         # Firstly, ensure that we don't try to apply a booster effect to people without NAbs
-        if nab_pars['nab_init'] is None:
+        if nab_pars.nab_init is None:
             errormsg = f'Attempt to administer a vaccine without an initial NAb distribution to {len(no_prior_nab_inds)} unvaccinated people failed.'
             raise ValueError(errormsg)
 
         # Now draw the initial NAb levels
-        init_nab = cvu.sample(**nab_pars['nab_init'], size=len(no_prior_nab_inds))
+        init_nab = cvu.sample(**nab_pars.nab_init, size=len(no_prior_nab_inds))
         no_prior_nab = (2 ** init_nab)
 
         # Next, these initial NAb levels are normalized to be equivalent to "vaccine NAbs".
@@ -63,13 +63,13 @@ def update_peak_nab(people, inds, nab_pars, symp=None, pathogen = 0):
         if symp is not None:
             # Setting up for symptom scaling
             prior_symp = np.full(pars['pop_size'], np.nan)
-            prior_symp[symp['asymp']] = pars['rel_imm_symp']['asymp']
-            prior_symp[symp['mild']] = pars['rel_imm_symp']['mild']
-            prior_symp[symp['sev']] = pars['rel_imm_symp']['severe']
+            prior_symp[symp['asymp']] = nab_pars.rel_imm_symp['asymp']
+            prior_symp[symp['mild']] =  nab_pars.rel_imm_symp['mild']
+            prior_symp[symp['sev']] =  nab_pars.rel_imm_symp['severe']
             prior_symp[prior_nab_inds] = np.nan
             prior_symp = prior_symp[~np.isnan(prior_symp)]
             # Applying symptom scaling and a normalization factor to the NAbs
-            norm_factor = 1 + nab_pars['nab_eff']['alpha_inf_diff']
+            norm_factor = 1 + nab_pars.nab_eff['alpha_inf_diff']
             no_prior_nab = no_prior_nab * prior_symp * norm_factor
 
         # Update people's peak NAbs
@@ -86,7 +86,7 @@ def update_nab(people, inds, pathogen):
     Step NAb levels forward in time
     '''
     t_since_boost = people.t - people.t_nab_event[pathogen, inds]
-    people.nab[pathogen,inds] += people.pars['nab_kin'][t_since_boost]*people.peak_nab[pathogen,inds]
+    people.nab[pathogen,inds] += people.pars['pathogens'][pathogen].nab_kin[t_since_boost]*people.peak_nab[pathogen,inds]
     people.nab[pathogen,inds] = np.where(people.nab[pathogen,inds]<0, 0, people.nab[pathogen,inds]) # Make sure nabs don't drop below 0
     people.nab[pathogen,inds] = np.where([people.nab[pathogen,inds] > people.peak_nab[pathogen,inds]], people.peak_nab[pathogen,inds], people.nab[pathogen,inds]) # Make sure nabs don't exceed peak_nab
     return
@@ -151,30 +151,9 @@ def init_immunity(sim, create=False, pathogen = 0):
     # Don't use this function if immunity is turned off
     if not sim['use_waning']:
         return
-
-    # Pull out all of the circulating variants for cross-immunity
-    nv = sim['n_variants'][pathogen]
-
-    # If immunity values have been provided, process them
-    if sim['immunity'] is None or create:
-
-        # Firstly, initialize immunity matrix with defaults. These are then overwitten with variant-specific values below
-        # Susceptibility matrix is of size sim['n_variants']*sim['n_variants']
-        immunity = np.ones((nv, nv), dtype=cvd.default_float)  # Fill with defaults
-
-        # Next, overwrite these defaults with any known immunity values about specific variants
-        default_cross_immunity = cvpar.get_cross_immunity()
-        for i in range(nv):
-            label_i = sim['variant_map'][i]
-            for j in range(nv):
-                label_j = sim['variant_map'][j]
-                if label_i in default_cross_immunity and label_j in default_cross_immunity:
-                    immunity[j][i] = default_cross_immunity[label_j][label_i]
-
-        sim['immunity'] = immunity
-
+     
     # Next, precompute the NAb kinetics and store these for access during the sim
-    sim['nab_kin'] = precompute_waning(length=sim.npts, pars=sim['nab_decay'])
+    sim.pathogens[pathogen].nab_kin = precompute_waning(length=sim.npts, pars=sim.pathogens[pathogen].nab_decay)
 
     return
 
@@ -192,9 +171,9 @@ def check_immunity(people, variant, pathogen):
     '''
 
     # Handle parameters and indices
-    pars = people.pars
-    immunity = pars['immunity'][variant,:] # cross-immunity/own-immunity scalars to be applied to NAb level before computing efficacy
-    nab_eff = pars['nab_eff']
+    pars = people.pars['pathogens'][pathogen]
+    immunity = pars.immunity[variant,:] # cross-immunity/own-immunity scalars to be applied to NAb level before computing efficacy
+    nab_eff = pars.nab_eff
     current_nabs = sc.dcp(people.nab[pathogen])
     imm = np.ones(len(people))
     date_rec = people.date_p_recovered[pathogen]  # Date recovered
@@ -208,10 +187,12 @@ def check_immunity(people, variant, pathogen):
 
     imm[was_inf_same] = immunity[variant]
     imm[was_inf_diff] = [immunity[i] for i in variant_was_inf_diff]
+
+    pars = people.pars
     if len(is_vacc) and len(pars['vaccine_pars']): # if using simple_vaccine, do not apply
         vx_pars = pars['vaccine_pars']
         vx_map = pars['vaccine_map']
-        var_key = pars['variant_map'][variant]
+        var_key = people.pars['pathogens'][pathogen].get_variants_labels()[variant]
         imm_arr = np.zeros(max(vx_map.keys())+1)
         for num,key in vx_map.items():
             imm_arr[num] = vx_pars[key][var_key]

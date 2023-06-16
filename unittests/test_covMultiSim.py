@@ -12,10 +12,8 @@ full_path = os.path.join(absolute_path, relative_path)
  
 
 pars = dict(
-        use_waning    = True,          
-        enable_vl = True,              
-        pop_size      = 5000,          
-        pop_infected  = 150,           
+        use_waning    = True,            
+        pop_size      = 5000,           
         pop_type      = 'random',      
         n_days        = 80,            
         verbose       = 0,             

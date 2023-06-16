@@ -60,9 +60,6 @@ def make_people(sim, popdict=None, workplaces = None, n_workplaces = None, reset
     else:   
         popdict = make_randpop(sim, **kwargs)  #create random population if no population input
             
-    # Ensure prognoses are set
-    if sim['prognoses'] is None:
-        sim['prognoses'] = cvpar.get_prognoses(sim['prog_by_age'], version=sim._default_ver)
 
     # Do minimal validation and create the people
     validate_popdict(popdict, sim.pars, verbose=verbose)

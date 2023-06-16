@@ -252,8 +252,7 @@ def migrate_variants(pars, verbose=True):
     '''
     pars['use_waning']   = False
     pars['n_variants']   = 1
-    pars['variants']     = []
-    pars['variant_map']  = {}
+    pars['variants']     = [] 
     pars['variant_pars'] = {}
     pars['vaccine_map']  = {}
     pars['vaccine_pars'] = {}

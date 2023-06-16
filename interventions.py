@@ -552,12 +552,13 @@ class change_beta(Intervention):
         interv = cv.change_beta([14, 28], [0.7, 1], layers='s') # On day 14, reduce beta by 30%, and on day 28, return to 1 for schools
     '''
 
-    def __init__(self, days, changes, layers=None, **kwargs):
+    def __init__(self, days, changes, layers=None, pathogen = 0, **kwargs):
         super().__init__(**kwargs) # Initialize the Intervention object
         self.days       = sc.dcp(days)
         self.changes    = sc.dcp(changes)
         self.layers     = sc.dcp(layers)
         self.orig_betas = None
+        self.pathogen = pathogen
         return
 
 
@@ -570,7 +571,7 @@ class change_beta(Intervention):
         self.orig_betas = {}
         for lkey in self.layers:
             if lkey is None:
-                self.orig_betas['overall'] = sim['beta']
+                self.orig_betas['overall'] = sim.pathogens[self.pathogen].beta
             else:
                 self.orig_betas[lkey] = sim['beta_layer'][lkey]
 
@@ -584,7 +585,7 @@ class change_beta(Intervention):
             for lkey,new_beta in self.orig_betas.items():
                 new_beta = new_beta * self.changes[ind]
                 if lkey == 'overall':
-                    sim['beta'] = new_beta
+                    sim.pathogens[self.pathogen].beta = new_beta
                 else:
                     sim['beta_layer'][lkey] = new_beta
 
@@ -1451,14 +1452,14 @@ class BaseVaccination(Intervention):
 
 
     '''
-    def __init__(self, vaccine, label=None, **kwargs):
+    def __init__(self, vaccine, label=None, pathogen = 0, **kwargs):
         super().__init__(**kwargs) # Initialize the Intervention object
         self.index = None # Index of the vaccine in the sim; set later
         self.label = label # Vaccine label (used as a dict key)
         self.p     = None # Vaccine parameters
         self.doses = None # Record the number of doses given per person *by this intervention*
         self.vaccination_dates = None # Store the dates that each person was last vaccinated *by this intervention*
-
+        self.pathogen = pathogen
         self._parse_vaccine_pars(vaccine=vaccine) # Populate
         return
 
@@ -1520,7 +1521,7 @@ class BaseVaccination(Intervention):
         # Populate any missing keys -- must be here, after variants are initialized
         default_variant_pars = cvpar.get_vaccine_variant_pars(default=True)
         default_dose_pars    = cvpar.get_vaccine_dose_pars(default=True)
-        variant_labels       = list(sim['variant_pars'].keys())
+        variant_labels       = sim.pathogens[self.pathogen].get_variants_labels()
         dose_keys            = list(default_dose_pars.keys())
 
         # Handle dose keys
@@ -1544,7 +1545,7 @@ class BaseVaccination(Intervention):
             if self.p['doses'] == len(self.p['target_eff']):
                 # determine efficacy of first dose (assume efficacy supplied is against symptomatic disease)
                 nabs = np.arange(-8, 4, 0.1) # Pick a range of trial NAbs to use
-                VE_symp = cvi.calc_VE_symp(2**nabs, sim.pars['nab_eff'])
+                VE_symp = cvi.calc_VE_symp(2**nabs, sim.pathogens[0].nab_eff)
                 peak_nab = nabs[np.argmax(VE_symp>self.p['target_eff'][0])]
                 self.p['nab_init'] = dict(dist='normal', par1=peak_nab, par2=2)
                 if self.p['doses'] == 2:
@@ -2033,10 +2034,10 @@ class historical_vaccinate_prob(BaseVaccination):
         # extend nab profiles
         self.extra_days = np.abs(np.min(self.days).astype(cvd.default_int))
         new_nab_length = sim.npts + self.extra_days
-        if new_nab_length > len(sim.pars['nab_kin']):
-            sim.pars['nab_kin'] = cvi.precompute_waning(length=new_nab_length, pars=sim['nab_decay'])
+        if new_nab_length > len(sim.pathogens[0].nab_kin):
+            sim.pathogens[0].nab_kin = cvi.precompute_waning(length=new_nab_length, pars=sim.pathogens[0].nab_decay)
             if sim.people:
-                sim.people.pars['nab_kin'] = sim['nab_kin']
+                sim.people.pars['nab_kin'] = sim.pathogens[0].nab_kin
 
         # handle days
         self.days             = self.process_days(sim, self.days) # days that group becomes eligible
@@ -2231,7 +2232,7 @@ class historical_wave(Intervention):
 
         # pick variant mapping index (integer value)
         variants = []
-        mapping = {v: k for k, v in sim['variant_map'].items()}  # Swap
+        mapping = {v: k for k, v in sim['variant_map'].items()}  # Swap TODO change variant_map is a mapping index to label: {0: wild, 1:alpha ....}
         for variant in self.variants:
             if variant in mapping:
                 variants += [mapping[variant]]
@@ -2286,9 +2287,9 @@ class historical_wave(Intervention):
 
         # we will need to extend the nab profiles
         new_nab_length = sim.npts - np.floor(np.min(inf_offset_days)).astype(cvd.default_int)
-        if new_nab_length > len(sim.pars['nab_kin']):
-            sim.pars['nab_kin'] = cvi.precompute_waning(length=new_nab_length, pars=sim['nab_decay'])
-            people.pars['nab_kin'] = sim['nab_kin']
+        if new_nab_length > len(sim.pathogens[0].nab_kin):
+            sim.pathogens[0].nab_kin = cvi.precompute_waning(length=new_nab_length, pars=sim.pathogens[0].nab_decay)
+            people.pars['nab_kin'] = sim.pathogens[0].nab_kin
 
         # update nab, states, and count flows
         flow_keys_to_save = ['new_infections', 'new_reinfections']

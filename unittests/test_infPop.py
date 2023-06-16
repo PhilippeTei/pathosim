@@ -3,23 +3,22 @@ import infection as inf
 import sciris as sc
 import os
 import numpy as np
-gen_baseline = False 
-
+gen_baseline = False
 absolute_path = os.path.dirname(__file__)
 relative_path = "baselines"
 full_path = os.path.join(absolute_path, relative_path)
 
 simPars = {
             'pop_size': 1000,
-            'n_days': 10,
-            'pop_infected': 50,
+            'n_days': 10, 
             'rand_seed' : 0
         }
 
 class test_infPop(unittest.TestCase):
 
     def test_different_pop_types(self):
-
+        
+        pathogen = inf.SARS_COV_2(50)
         baseline_contacts = sc.loadobj(f'{full_path}/test_infPop_contacts.baseline') 
         baseline_pars = sc.loadobj(f'{full_path}/test_infPop_pars.baseline') 
 
@@ -31,8 +30,10 @@ class test_infPop(unittest.TestCase):
         poptype = 'behaviour_module'
 
         pop = sc.loadobj(f'{full_path}/test_infPop_bhPopulation.ppl')
-        sim = inf.Sim(simPars, pop_type = poptype, people = pop, verbose = 0)
-        sim.init_people()  
+        sim = inf.Sim(simPars, pop_type = poptype, people = pop, verbose = 0, pathogens = [pathogen])
+         
+
+        sim.initialize()  
            
         exceptions = [
             'exposed_variant', 
@@ -40,18 +41,13 @@ class test_infPop(unittest.TestCase):
             'recovered_variant',
             'exposed_by_variant',
             'infectious_by_variant']
-
-        #check all keys are present
-        for k in baseline_pars:
-            if k not in exceptions:
-                self.assertEqual(True if k in sim.people.pars else False, True)
+         
 
         #check some parameters
-        self.assertEqual(True if np.array_equal(sim.people.pars['prognoses']['symp_probs'], baseline_pars['prognoses']['symp_probs']) else False, True)
-        self.assertEqual(True if np.array_equal(sim.people.pars['prognoses']['severe_probs'], baseline_pars['prognoses']['severe_probs']) else False, True)
-        self.assertEqual(True if np.array_equal(sim.people.pars['prognoses']['crit_probs'], baseline_pars['prognoses']['crit_probs']) else False, True)
-        self.assertEqual(True if np.array_equal(sim.people.pars['prognoses']['death_probs'], baseline_pars['prognoses']['death_probs']) else False, True)
-        self.assertEqual(True if np.array_equal(sim.people.pars['prognoses']['comorbidities'], baseline_pars['prognoses']['comorbidities']) else False, True)
+        self.assertEqual(True if np.array_equal(sim.people.symp_prob[0]     , baseline_pars['symp']) else False, True)
+        self.assertEqual(True if np.array_equal(sim.people.severe_prob[0]      , baseline_pars['severe']) else False, True)
+        self.assertEqual(True if np.array_equal(sim.people.crit_prob[0]    , baseline_pars['crit']) else False, True)
+        self.assertEqual(True if np.array_equal(sim.people.death_prob[0]    , baseline_pars['death']) else False, True) 
 
         self.assertEqual(True if np.array_equal(sim.people['contacts']['h']['p1'], baseline_contacts['h']['p1']) else False, True)
         self.assertEqual(True if np.array_equal(sim.people['contacts']['h']['p2'], baseline_contacts['h']['p2']) else False, True)
@@ -75,10 +71,17 @@ def generate_baseline():
     
     pop.save(f'{full_path}/test_infPop_bhPopulation.ppl')
      
-    sim = inf.Sim(simPars,pop_type ='behaviour_module', people = pop, verbose = 0)
+    pathogen = inf.SARS_COV_2(50)
+    sim = inf.Sim(simPars,pop_type ='behaviour_module', people = pop, verbose = 0, pathogens = [pathogen])
     sim.init_people() 
     sc.saveobj(f'{full_path}/test_infPop_contacts.baseline', sim.people.contacts)
-    sc.saveobj(f'{full_path}/test_infPop_pars.baseline', sim.people.pars)
+
+    d = {
+        'symp':sim.people.symp_prob[0],
+        'severe':sim.people.severe_prob[0],
+        'crit':sim.people.crit_prob[0],
+        'death':sim.people.death_prob[0]} 
+    sc.saveobj(f'{full_path}/test_infPop_pars.baseline', d)
 
     
 

@@ -266,7 +266,7 @@ class MultiSim(cvb.FlexPretty):
                 vals = sim.results[reskey].values
                 raw[reskey][:, s] = vals
         for reskey in variantkeys:
-            raw[reskey] = np.zeros((reduced_sim['n_variants'], reduced_sim.npts, len(self.sims)))
+            raw[reskey] = np.zeros((reduced_sim.pathogens[0]['n_variants'], reduced_sim.npts, len(self.sims)))
             for s,sim in enumerate(self.sims):
                 vals = sim.results['variant'][reskey].values
                 raw[reskey][:, :, s] = vals
@@ -912,7 +912,7 @@ class Scenarios(cvb.ParsObj):
         self.base_sim.update_pars(self.basepars)
         self.base_sim.validate_pars()
         if not self.base_sim.initialized:
-            self.base_sim.init_variants()
+            self.base_sim.init_pathogens()
             self.base_sim.init_immunity()
             self.base_sim.init_results()
 

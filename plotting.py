@@ -390,12 +390,12 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
                 res_t = sim.results['date']
                 if reskey in variant_keys:
                     res = sim.results['variant'][reskey]
-                    ns = sim['n_variants']
+                    ns = sim.pathogens[0].n_variants
                     variant_colors = sc.gridcolors(ns)
                     for variant in range(ns):
                         # Colors and labels
                         v_color = variant_colors[variant]
-                        v_label = 'wild type' if variant == 0 else sim['variants'][variant-1].label
+                        v_label = 'wild type' if variant == 0 else sim['pathogens'][0].variants[variant-1].label
                         color = set_line_options(colors, reskey, resnum, v_color)  # Choose the color
                         label = set_line_options(labels, reskey, resnum, '')  # Choose the label
                         if label: label += f' - {v_label}'

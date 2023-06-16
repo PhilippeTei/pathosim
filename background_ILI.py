@@ -4,7 +4,7 @@ from math import ceil
 
 # Very simple module of what background ILI looks like
 
-def infect_ILI(sim): 
+def infect_ILI(sim, pathogen = 0): 
     '''
     Void function that infects some proportion of the population with non-COVID ILI, refreshed each week. Meant to be called at each time step. We assume 
     that people cannot be infected with both COVID and ILI at the same time. Unsure if this is realistic. 
@@ -18,15 +18,15 @@ def infect_ILI(sim):
         sim  (simulation) : Initialized simulation object 
         p_infect  (float) : Proportion of population to infect. For now, assume 8% of population has ILI on any given day
     '''
-    if isinstance(sim.pars['bkg_ILI'], (float, np.floating)):
-        ILI_float(sim)
+    if isinstance(sim.pathogens[pathogen].bkg_ILI, (float, np.floating)):
+        ILI_float(sim, pathogen)
     else: 
-        ILI_array(sim)
+        ILI_array(sim, pathogen)
         return
 
 
-def ILI_float(sim):
-    p_infect = sim.pars['bkg_ILI']
+def ILI_float(sim, pathogen):
+    p_infect = sim.pathogens[pathogen].bkg_ILI
     cur = sim.t
     pop_size = sim.people.pars['pop_size']
     n_infect = int(pop_size * p_infect)
@@ -75,8 +75,8 @@ def ILI_float(sim):
         sim.people['symptomatic_ILI'][infect_inds] = True
 
 
-def ILI_array(sim):
-    p_infect = sim.pars['bkg_ILI']
+def ILI_array(sim, pathogen):
+    p_infect = sim.pathogens[pathogen].bkg_ILI
     cur = sim.t
     cur_week = ceil( (cur+1) / 7)
     pop_size = sim.people.pars['pop_size']

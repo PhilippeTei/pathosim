@@ -280,7 +280,6 @@ class BaseSim(ParsObj):
             # Define aliases
             mapping = dict(
                 n_agents = 'pop_size',
-                init_infected = 'pop_infected',
             )
             for key1,key2 in mapping.items():
                 if key1 in pars:
@@ -289,9 +288,7 @@ class BaseSim(ParsObj):
             # Handle other special parameters
             if pars.get('pop_type'):
                 cvpar.reset_layer_pars(pars, force=False)
-            if pars.get('prog_by_age'):
-                pars['prognoses'] = cvpar.get_prognoses(by_age=pars['prog_by_age'], version=self._default_ver) # Reset prognoses
-
+                  
             # Call update_pars() for ParsObj
             super().update_pars(pars=pars, create=create)
 
@@ -933,7 +930,7 @@ class BasePeople(FlexPretty):
         # Check that parameters match
         if sim_pars is not None:
             mismatches = {}
-            keys = ['pop_size', 'pop_type', 'location', 'pop_infected', 'frac_susceptible', 'n_variants'] # These are the keys used in generating the population
+            keys = ['pop_size', 'pop_type', 'location'] # These are the keys used in generating the population
             for key in keys:
                 sim_v = sim_pars.get(key)
                 ppl_v = self.pars.get(key)
