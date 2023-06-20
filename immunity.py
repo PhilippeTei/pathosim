@@ -3,6 +3,7 @@ Defines classes and methods for calculating immunity
 '''
 
 import numpy as np
+import numba as nb
 import sciris as sc
 from . import utils as cvu
 from . import defaults as cvd
@@ -90,7 +91,55 @@ def update_nab(people, inds, pathogen):
     people.nab[pathogen,inds] = np.where(people.nab[pathogen,inds]<0, 0, people.nab[pathogen,inds]) # Make sure nabs don't drop below 0
     people.nab[pathogen,inds] = np.where([people.nab[pathogen,inds] > people.peak_nab[pathogen,inds]], people.peak_nab[pathogen,inds], people.nab[pathogen,inds]) # Make sure nabs don't exceed peak_nab
     return
+ 
+def update_imm(people, inds, pathogen, min_imm, max_imm, days_to_min, days_to_max):
+    '''
+    Step imm levels forward in time
+    '''
+    for i in inds:    
+        if people['p_dead'][pathogen, i]:
+            continue
 
+        if not np.isnan(people['date_p_recovered'][pathogen, i]):
+             rec_or_dead_date =  people['date_p_recovered'][pathogen, i]  
+        else:
+             rec_or_dead_date =  people['date_p_dead'][pathogen, i]  
+
+
+        if (people.t_peak_imm[pathogen, i] - people.t) > 0 and people['p_exposed'][pathogen, i] == True:
+            x = people.t - people['date_p_exposed'][pathogen, i]
+             
+            people.imm_level[pathogen, i] = immunity_growth_function(x, people['curr_min'][pathogen][i], max_imm, days_to_max) #if previously infected, immunity starts at the min value 
+
+
+
+        elif (people.t_peak_imm[pathogen, i] - people.t) <= 0 and people['p_exposed'][pathogen, i] == True and rec_or_dead_date > people.t: #if between peak and recovered
+            people['curr_min'][pathogen][i] = min_imm
+            continue
+
+        elif (people.t_min_imm[pathogen, i] - people.t) > 0 and (people.t_peak_imm[pathogen, i] - people.t) <= 0  and rec_or_dead_date <= people.t and people['p_recovered'][pathogen, i] == True:
+            
+            x = people.t - rec_or_dead_date
+            people.imm_level[pathogen, i] = immunity_decay_function(x, min_imm, max_imm, days_to_min)
+            people['curr_min'][pathogen][i] = people.imm_level[pathogen,i] 
+        validate_imm(i, pathogen, people, min_imm, max_imm, rec_or_dead_date)  
+    return
+ 
+def validate_imm(i, pathogen, people, mini, maxi, rec_dead_date): 
+    if people['p_dead'][pathogen, i]:
+        return
+
+    if people.t_peak_imm[pathogen, i] == people.t:
+        assert abs(people.imm_level[pathogen, i] - maxi) < 0.01
+    if people.t_min_imm[pathogen, i] == people.t: 
+         
+        assert abs(people.imm_level[pathogen,i] - mini) < 0.01 
+    
+    if people.t < rec_dead_date and people.t >= people.t_peak_imm[pathogen, i]: 
+        assert abs(people.imm_level[pathogen, i] - maxi) < 0.01
+         
+
+             
 
 def calc_VE(nab, ax, pars):
     '''
@@ -139,21 +188,22 @@ def calc_VE_symp(nab, pars):
 
     VE_symp = 1 - ((1 - inv_lo_inf)*(1 - inv_lo_symp_inf))
     return VE_symp
-
-
+ 
 
 
 # %% Immunity methods
 
-def init_immunity(sim, create=False, pathogen = 0):
+def init_immunity(sim, create=False):
     ''' Initialize immunity matrices with all variants that will eventually be in the sim'''
 
     # Don't use this function if immunity is turned off
     if not sim['use_waning']:
         return
      
-    # Next, precompute the NAb kinetics and store these for access during the sim
-    sim.pathogens[pathogen].nab_kin = precompute_waning(length=sim.npts, pars=sim.pathogens[pathogen].nab_decay)
+    for p in sim.pathogens:
+        # Next, precompute the NAb kinetics and store these for access during the sim
+        if p.use_nab_framework:
+            p.nab_kin = precompute_waning(length=sim.npts, pars=p.nab_decay) 
 
     return
 
@@ -172,10 +222,15 @@ def check_immunity(people, variant, pathogen):
 
     # Handle parameters and indices
     pars = people.pars['pathogens'][pathogen]
-    immunity = pars.immunity[variant,:] # cross-immunity/own-immunity scalars to be applied to NAb level before computing efficacy
-    nab_eff = pars.nab_eff
-    current_nabs = sc.dcp(people.nab[pathogen])
-    imm = np.ones(len(people))
+    v_cross_imm = pars.immunity[variant,:] # cross-immunity/own-immunity scalars to be applied to NAb level before computing efficacy
+    v_cross_imm_multiplier = np.ones(len(people))
+    
+    if pars.use_nab_framework:
+        nab_eff = pars.nab_eff
+        current_nabs = sc.dcp(people.nab[pathogen])
+    else:
+        current_imm = sc.dcp(people.imm_level[pathogen])
+
     date_rec = people.date_p_recovered[pathogen]  # Date recovered
     is_vacc = cvu.true(people.vaccinated)  # Vaccinated
     vacc_source = people.vaccine_source[is_vacc]
@@ -185,8 +240,8 @@ def check_immunity(people, variant, pathogen):
     variant_was_inf_diff = people.p_recovered_variant[pathogen, was_inf_diff]
     variant_was_inf_diff = variant_was_inf_diff.astype(cvd.default_int)
 
-    imm[was_inf_same] = immunity[variant]
-    imm[was_inf_diff] = [immunity[i] for i in variant_was_inf_diff]
+    v_cross_imm_multiplier[was_inf_same] = v_cross_imm[variant]
+    v_cross_imm_multiplier[was_inf_diff] = [v_cross_imm[i] for i in variant_was_inf_diff]
 
     pars = people.pars
     if len(is_vacc) and len(pars['vaccine_pars']): # if using simple_vaccine, do not apply
@@ -196,12 +251,22 @@ def check_immunity(people, variant, pathogen):
         imm_arr = np.zeros(max(vx_map.keys())+1)
         for num,key in vx_map.items():
             imm_arr[num] = vx_pars[key][var_key]
-        imm[is_vacc] = imm_arr[vacc_source]
+        v_cross_imm_multiplier[is_vacc] = imm_arr[vacc_source]
 
-    current_nabs *= imm
-    people.sus_imm[pathogen,variant,:]  = calc_VE(current_nabs, 'sus',  nab_eff)
-    people.symp_imm[pathogen,variant,:] = calc_VE(current_nabs, 'symp', nab_eff)
-    people.sev_imm[pathogen, variant,:]  = calc_VE(current_nabs, 'sev',  nab_eff)
+    if pars['pathogens'][pathogen].use_nab_framework:
+        current_nabs *= v_cross_imm_multiplier
+        people.sus_imm[pathogen,variant,:]  = calc_VE(current_nabs, 'sus',  nab_eff)
+        people.symp_imm[pathogen,variant,:] = calc_VE(current_nabs, 'symp', nab_eff)
+        people.sev_imm[pathogen, variant,:]  = calc_VE(current_nabs, 'sev',  nab_eff)
+    else:
+        current_imm *= v_cross_imm_multiplier
+
+        clamped_current_imm = cvu.clamp_np_arr(current_imm, 0, pars['pathogens'][pathogen].imm_max)
+         
+        people.sus_imm[pathogen,variant,:]  = clamped_current_imm
+        people.symp_imm[pathogen,variant,:] = clamped_current_imm
+        people.sev_imm[pathogen, variant,:] = clamped_current_imm
+        
 
     return
 
@@ -362,3 +427,21 @@ def linear_decay(length, init_val, slope):
 def linear_growth(length, slope):
     ''' Calculate linear growth '''
     return slope*np.ones(length)
+
+
+def immunity_growth_function(x, min, max, peak_t):
+    y = (max-min) / np.exp(peak_t) * (np.exp(x)-1)  + min
+    return y
+
+def immunity_decay_function(x, min, max, min_t): # https://en.wikipedia.org/wiki/Non-analytic_smooth_function#Smooth_transition_functions
+    a = exponeover(x/min_t)
+    y = (max-min) * (1 - a / ( a + exponeover(1-(x/min_t)))) + min
+    return y
+
+def exponeover(x): 
+    y = 0
+    if (x> 0.00000001):
+        y = np.exp(-1/x)
+    return y
+
+

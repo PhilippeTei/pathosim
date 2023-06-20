@@ -120,7 +120,13 @@ class People(cvb.BasePeople):
                 #change this to use n_variants for pathogen i!! 
                 self[key] = (np.full((pars['n_pathogens'], max_variants, self.pars['pop_size']), False, dtype=bool)) #self[key)][variant_index][personID]
 
-
+        for key in self.meta.imm_levels:
+            if key not in ['was_previously_infected', 'curr_min']:
+                self[key] = np.full((pars['n_pathogens'],self.pars['pop_size']), 0, dtype = cvd.default_float) #imm_level
+                
+        self['was_previously_infected'] = np.full((pars['n_pathogens'],self.pars['pop_size']), False, dtype = bool)
+         
+        self['curr_min'] = np.full((pars['n_pathogens'],self.pars['pop_size']), 0.005, dtype = cvd.default_float)
         # Set variant states, which store info about which variant a person is exposed to
      #   for key in self.meta.variant_states:
       #      self[key] = np.full(self.pars['pop_size'], np.nan, dtype=cvd.default_float)
@@ -631,7 +637,7 @@ class People(cvb.BasePeople):
         self.p_symptomatic[pathogen,inds]      = False
         self.p_severe[pathogen,inds]           = False
         self.p_critical[pathogen,inds]         = False
-        self.p_recovered[pathogen,inds]        = True
+        self.p_recovered[pathogen,inds]        = True 
 
         self.p_recovered_variant[pathogen,inds] = self.p_exposed_variant[pathogen,inds]
         self.p_infectious_variant[pathogen,inds] = np.nan
@@ -1056,6 +1062,11 @@ class People(cvb.BasePeople):
         self.date_p_exposed[pathogen_index, inds] = self.t
         self.date_p_infectious[pathogen_index, inds] = self.dur_exp2inf[pathogen_index, inds] + self.t
          
+        #set peak immunity  date:
+        if not self.pars['pathogens'][pathogen_index].use_nab_framework:
+            self['t_peak_imm'][pathogen_index, inds] = self.t + self.pars['pathogens'][pathogen_index].imm_days_to_max
+            inds_zeros = np.intersect1d(np.where(self['imm_level'][pathogen_index] <= 0.001), inds)
+            self['imm_level'][pathogen_index, inds_zeros] = 0.005 
 
         # Reset all other dates
         for key in ['date_symptomatic', 'date_severe', 'date_critical', 'date_diagnosed', 'date_recovered']:
@@ -1125,6 +1136,13 @@ class People(cvb.BasePeople):
         self.dur_disease[pathogen_index, dead_inds] = self.dur_exp2inf[pathogen_index,dead_inds] + self.dur_inf2sym[pathogen_index,dead_inds] + self.dur_sym2sev[pathogen_index,dead_inds] + self.dur_sev2crit[pathogen_index,dead_inds] + dur_crit2die   # Store how long this person had COVID-19
        
         self.date_p_recovered[pathogen_index,dead_inds] = np.nan # If they did die, remove them from recovered
+
+        
+        if not self.pars['pathogens'][pathogen_index].use_nab_framework:
+            rec_inds = list(set(inds) - set(dead_inds))
+            self['t_min_imm'][pathogen_index, rec_inds] = self.date_p_recovered[pathogen_index, rec_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_min
+            self['t_min_imm'][pathogen_index, dead_inds] = self.date_p_dead[pathogen_index, dead_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_min
+
         # HANDLE VIRAL LOAD CONTROL POINTS
        
         # Get P_inf: where viral load crosses 10^6 cp/mL

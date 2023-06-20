@@ -745,8 +745,13 @@ class Sim(cvb.BaseSim):
         icu_max  = people.count('critical') > self['n_beds_icu']  if self['n_beds_icu']  is not None else False # Check for ICU bed constraint
         
         # Randomly infect some people (imported infections)
-        if self.pathogens[current_pathogen].n_imports:
-            n_imports = cvu.poisson(self['n_imports']/self.rescale_vec[self.t]) # Imported cases
+        if self.pathogens[current_pathogen].n_imports:  
+            n_imports = 0
+            if isinstance(self.pathogens[current_pathogen].n_imports, list):#If we provide an array, then its a timeline of infections
+                if (self.t < len(self.pathogens[current_pathogen].n_imports)):
+                    n_imports = cvu.poisson(self.pathogens[current_pathogen].n_imports[self.t]/self.rescale_vec[self.t])  
+            else: 
+                n_imports = cvu.poisson(self.pathogens[current_pathogen].n_imports/self.rescale_vec[self.t])  
             if n_imports>0:
                 importation_inds = cvu.choose(max_n=self['pop_size'], n=n_imports)
                 people.infect(inds=importation_inds, hosp_max=hosp_max, icu_max=icu_max, layer='importation', pathogen_index = current_pathogen)
@@ -896,9 +901,15 @@ class Sim(cvb.BaseSim):
 
         # Update nab and immunity for this time step
         if self['use_waning']:
-            has_nabs = cvu.true(people.peak_nab[current_pathogen])
-            if len(has_nabs):
-                cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
+            if self.pathogens[current_pathogen].use_nab_framework:
+                has_nabs = cvu.true(people.peak_nab[current_pathogen])
+                if len(has_nabs):
+                    cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
+            else:
+                has_imm = np.where(people.imm_level[current_pathogen] > 0)
+                if len(has_imm):
+                    cvimm.update_imm(people, has_imm[0], current_pathogen, self.pathogens[current_pathogen].imm_min, self.pathogens[current_pathogen].imm_max, self.pathogens[current_pathogen].imm_days_to_min, self.pathogens[current_pathogen].imm_days_to_max)
+
 
         inds_alive = cvu.false(people.dead)
         self.results['pop_nabs'][t]            = np.sum(people.nab[current_pathogen, inds_alive[cvu.true(people.nab[current_pathogen, inds_alive])]])/len(inds_alive)

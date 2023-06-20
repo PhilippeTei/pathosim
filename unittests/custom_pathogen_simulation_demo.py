@@ -53,6 +53,9 @@ custom_cross_immunity = dict(
 
 MyNewPathogen.configure_variant_cross_immunity(custom_cross_immunity)
  
+MyNewPathogen.configure_generalized_immunity(0.1, 0.9, 300, 7)
+
+
 sim = inf.Sim(pop_size = pop_size, pathogens = [MyNewPathogen], n_days = 150)
 sim.run()
 sim.plot('variants')

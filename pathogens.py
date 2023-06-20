@@ -32,7 +32,7 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
 
     #------------ USER CONFIGURE PATHOGEN FUNCTIONS: ADD VARIANTS, CONFIGURE PARAMETERS OF EXISTING PATHOGEN OR FULLY CUSTOM PATHOGEN ------------#
     #region 
-   
+    
     def add_custom_variant(self, label = "custom", days = 0, n_imports = 10, rel_beta = 1.0, rel_symp_prob = 1.0, rel_severe_prob = 1.0, rel_crit_prob = 1.0, rel_death_prob = 1.0):
         '''
         Add a custom variant to the pathogen and configure its parameters
@@ -101,6 +101,16 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         self.prog_by_age      = prog_by_age 
         for key in prognoses.keys():
             self.prognoses[key] = prognoses[key]
+
+    def configure_generalized_immunity(self, min_immunity = 0, max_immunity = 1, duration_to_min_immunity = 100, duration_to_max_immunity = 10):
+        self.use_nab_framework = False
+        self.imm_max = max_immunity
+        self.imm_min = min_immunity
+        self.imm_days_to_max = duration_to_max_immunity
+        self.imm_days_to_min = duration_to_min_immunity
+
+    def configure_imports(self, imports = 0):
+        self.n_imports = imports
     #endregion
 
     #------------------ DEFAULT PATHOGEN PARAMETRS, ALL ARE TO POSSIBLY OVERRIDE IN DERIVED CLASS ----------------#
@@ -124,18 +134,26 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
           
         # Parameters used to calculate immunity 
         self.use_nab_framework = True
+
         self.nab_init     = dict(dist='normal', par1=0, par2=2)  # Parameters for the distribution of the initial level of log2(nab) following natural infection
         self.nab_decay    = dict(form='nab_growth_decay', growth_time=21, decay_rate1=np.log(2) / 50, decay_time1=150, decay_rate2=np.log(2) / 250, decay_time2=365)
         self.nab_kin    = None # Constructed during sim initialization using the nab_decay parameters
         self.nab_boost    = 1.5 # Multiplicative factor applied to a person's nab levels if they get reinfected
         self.nab_eff      = dict(alpha_inf=1.08, alpha_inf_diff=1.812, beta_inf=0.967, alpha_symp_inf=-0.739, beta_symp_inf=0.038, alpha_sev_symp=-0.014, beta_sev_symp=0.079) # Parameters to map nabs to efficacy
         self.rel_imm_symp = dict(asymp=0.85, mild=1, severe=1.5) # Relative immunity from natural infection varies by symptoms. Assumption.
-        self.immunity     = None  # Matrix of immunity and cross-immunity factors, set by init_immunity() in immunity.py
         self.trans_redux  = 0.59  # Reduction in transmission for breakthrough infections
 
         #immunity
         #growth rate after infection (exponential), max immunity,  decay rate
-          
+        self.imm_max = 1 
+        self.imm_min = 0
+        self.imm_days_to_max = 2 #How many days it takes for the immunity to reach its peak when infected, grows exponentially
+        self.imm_days_to_min = 100 
+
+
+        #Cross-variant immunity
+        self.immunity     = None  # Matrix of immunity and cross-immunity factors, set later
+
         # Duration parameters: time for disease progression
         self.dur = {}
         self.dur['exp2inf']  = dict(dist='lognormal_int', par1=4.5, par2=1.5) # Duration from exposed to infectious;
@@ -249,6 +267,8 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
     def update_runtime_pars(self):
         '''updates any parameters that should be set automatically in the beginning of a simulation'''
         self.n_variants = len(self.variants)+1
+        if self.imm_min <= 0.001:
+            self.imm_min = 0.005
 
     def convert_prognoses(self):  
         out = sc.dcp(self.prognoses)

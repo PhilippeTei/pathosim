@@ -566,6 +566,15 @@ def custom_np_fmax(arr1, arr2, size):
             arr2[j] = np.nan
     return arr2
 
+@nb.njit()
+def clamp_np_arr(arr, minimum, maximum):
+    for j in range(len(arr)):
+        if arr[j] < minimum:
+            arr[j] = minimum
+        if arr[j] > maximum:
+            arr[j] = maximum
+
+    return arr
 
 def np_arr_equal_with_nan(arr1,arr2):
     if(len(arr1) != len (arr2)): 
