@@ -95,36 +95,43 @@ def update_nab(people, inds, pathogen):
 def update_imm(people, inds, pathogen, min_imm, max_imm, days_to_min, days_to_max):
     '''
     Step imm levels forward in time
-    '''
-    for i in inds:    
-        if people['p_dead'][pathogen, i]:
-            continue
-
-        if not np.isnan(people['date_p_recovered'][pathogen, i]):
-             rec_or_dead_date =  people['date_p_recovered'][pathogen, i]  
-        else:
-             rec_or_dead_date =  people['date_p_dead'][pathogen, i]  
-
-
-        if (people.t_peak_imm[pathogen, i] - people.t) > 0 and people['p_exposed'][pathogen, i] == True:
-            x = people.t - people['date_p_exposed'][pathogen, i]
-             
-            people.imm_level[pathogen, i] = immunity_growth_function(x, people['curr_min'][pathogen][i], max_imm, days_to_max) #if previously infected, immunity starts at the min value 
-
-
-
-        elif (people.t_peak_imm[pathogen, i] - people.t) <= 0 and people['p_exposed'][pathogen, i] == True and rec_or_dead_date > people.t: #if between peak and recovered
-            people['curr_min'][pathogen][i] = min_imm
-            continue
-
-        elif (people.t_min_imm[pathogen, i] - people.t) > 0 and (people.t_peak_imm[pathogen, i] - people.t) <= 0  and rec_or_dead_date <= people.t and people['p_recovered'][pathogen, i] == True:
-            
-            x = people.t - rec_or_dead_date
-            people.imm_level[pathogen, i] = immunity_decay_function(x, min_imm, max_imm, days_to_min)
-            people['curr_min'][pathogen][i] = people.imm_level[pathogen,i] 
-        validate_imm(i, pathogen, people, min_imm, max_imm, rec_or_dead_date)  
+    ''' 
+    people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['date_p_recovered'][pathogen], people['date_p_dead'][pathogen], people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people['p_exposed'][pathogen], people.t, people['date_p_exposed'][pathogen],  people['curr_min'][pathogen],people['p_recovered'][pathogen],  people.imm_level[pathogen],inds,min_imm, max_imm,days_to_min,days_to_max)
     return
  
+@nb.njit()
+def update_imm_nb(people_dead, people_date_rec, people_date_dead, people_t_peak, people_t_min, people_exposed, t, people_date_exposed, people_curr_min, people_recovered, people_imm_level, inds, min_imm, max_imm, days_to_min, days_to_max):
+
+    for i in inds:    
+        if people_dead[i]:
+            continue
+
+        if not np.isnan(people_date_rec[i]):
+             rec_or_dead_date =  people_date_rec[i]  
+        else:
+             rec_or_dead_date =  people_date_dead[i]  
+
+
+        if (people_t_peak[i] - t) > 0 and people_exposed[i] == True:
+            x = t - people_date_exposed[i]
+             
+            people_imm_level[i] = immunity_growth_function(x, people_curr_min[i], max_imm, days_to_max) #if previously infected, immunity starts at the min value 
+
+
+
+        elif (people_t_peak[i] - t) <= 0 and people_exposed[i] == True and rec_or_dead_date > t: #if between peak and recovered
+            people_curr_min[i] = min_imm
+            continue
+
+        elif (people_t_min[i] - t) > 0 and (people_t_peak[i] - t) <= 0  and rec_or_dead_date <= t and people_recovered[i] == True:
+            
+            x = t - rec_or_dead_date
+            people_imm_level[i] = immunity_decay_function(x, min_imm, max_imm, days_to_min)
+            people_curr_min[i] = people_imm_level[i]  
+
+    return people_imm_level, people_curr_min
+
+
 def validate_imm(i, pathogen, people, mini, maxi, rec_dead_date): 
     if people['p_dead'][pathogen, i]:
         return
@@ -428,16 +435,18 @@ def linear_growth(length, slope):
     ''' Calculate linear growth '''
     return slope*np.ones(length)
 
-
+@nb.njit()
 def immunity_growth_function(x, min, max, peak_t):
     y = (max-min) / np.exp(peak_t) * (np.exp(x)-1)  + min
     return y
 
+@nb.njit()
 def immunity_decay_function(x, min, max, min_t): # https://en.wikipedia.org/wiki/Non-analytic_smooth_function#Smooth_transition_functions
     a = exponeover(x/min_t)
     y = (max-min) * (1 - a / ( a + exponeover(1-(x/min_t)))) + min
     return y
 
+@nb.njit()
 def exponeover(x): 
     y = 0
     if (x> 0.00000001):

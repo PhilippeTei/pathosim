@@ -749,7 +749,7 @@ class Sim(cvb.BaseSim):
             n_imports = 0
             if isinstance(self.pathogens[current_pathogen].n_imports, list):#If we provide an array, then its a timeline of infections
                 if (self.t < len(self.pathogens[current_pathogen].n_imports)):
-                    n_imports = cvu.poisson(self.pathogens[current_pathogen].n_imports[self.t]/self.rescale_vec[self.t])  
+                    n_imports = self.pathogens[current_pathogen].n_imports[self.t]
             else: 
                 n_imports = cvu.poisson(self.pathogens[current_pathogen].n_imports/self.rescale_vec[self.t])  
             if n_imports>0:
