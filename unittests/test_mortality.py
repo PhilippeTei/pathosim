@@ -22,7 +22,7 @@ class test_diseaseMortalityTests_COVID(unittest.TestCase):
          
         sim.run()
         #print(sim.people['n_infections'])
-        assert sim.summary.cum_deaths == pop_size
+        assert sim.summary[0].cum_deaths == pop_size
          
 
     def test_default_death_prob_zero(self):
@@ -48,9 +48,9 @@ class test_diseaseMortalityTests_COVID(unittest.TestCase):
 
         dead_expected = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
         severe_expected = [0., 0., 0., 0., 0., 0., 1., 3., 4., 5., 7.]
-
-        self.assertEqual(True if sim.results['n_severe'] == severe_expected else False, True)
-        self.assertEqual(True if sim.results['n_dead'] == dead_expected else False, True) 
+         
+        self.assertEqual(True if sim.results[0]['n_severe'] == severe_expected else False, True)
+        self.assertEqual(True if sim.results[0]['n_dead'] == dead_expected else False, True) 
          
   
              

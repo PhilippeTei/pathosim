@@ -22,43 +22,35 @@ result_keys = [
     'n_severe',       
     'n_recovered',   
     'n_dead']
-
+#REGEN BASELINES
 class test_covVariantsSim(unittest.TestCase):
     
     def test_oneVariant(self): 
         
         pathogen = inf.SARS_COV_2(20)
-        pathogen.add_existing_variant('alpha', days=5, n_imports=10) 
-         
-        sim = inf.Sim(simPars, pathogens = [pathogen]) 
-        sim.run()
+        pathogen.add_existing_variant('alpha', days=5, n_imports=10)  
+        sim = inf.Sim(simPars, pathogens = [pathogen])  
+        sim.run() 
          
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline')  
-            self.assertEqual(True if expected_result==sim.results[k] else False, True)
-            #if expected_result!=sim.results[k]:
-              #  print(sim.result[k])
-              #  print(expected_result)
-              #  print('---------------')
+            self.assertEqual(True if expected_result==sim.results[0][k] else False, True) 
     
     def test_multiVariants(self): 
+         
         pathogen = inf.SARS_COV_2(20)
 
         pathogen.add_existing_variant('alpha', days=0, n_imports=10)
         pathogen.add_existing_variant('beta', days=10, n_imports=10)
         pathogen.add_existing_variant('omicron', days=30, n_imports=15)
         pathogen.add_custom_variant(label='3x more transmissible', rel_beta = 3.0, days=60, n_imports=20)
-         
+          
         sim = inf.Sim(simPars, pathogens = [pathogen]) 
         sim.run()
-
+        
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_multiVariant_{k}.baseline')  
-            if not expected_result==sim.results[k]:
-                print(expected_result)
-                print("___________")
-                print(sim.results[k])
-            self.assertEqual(True if expected_result==sim.results[k] else False, True)
+            self.assertEqual(True if expected_result==sim.results[0][k] else False, True)
 
                  
 
@@ -72,7 +64,7 @@ def generate_baseline():
     sim.run() 
     
     for k in result_keys:
-        sc.saveobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline', sim.results[k]) 
+        sc.saveobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline', sim.results[0][k]) 
         
     
     pathogen = inf.SARS_COV_2(20)
@@ -86,7 +78,7 @@ def generate_baseline():
     sim.run() 
 
     for k in result_keys:
-        sc.saveobj(f'{full_path}/test_covVariantsSim_multiVariant_{k}.baseline', sim.results[k]) 
+        sc.saveobj(f'{full_path}/test_covVariantsSim_multiVariant_{k}.baseline', sim.results[0][k]) 
 
 if __name__ == '__main__': 
     if gen_baseline:

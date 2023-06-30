@@ -231,22 +231,26 @@ def check_immunity(people, variant, pathogen):
     pars = people.pars['pathogens'][pathogen]
     v_cross_imm = pars.immunity[variant,:] # cross-immunity/own-immunity scalars to be applied to NAb level before computing efficacy
     v_cross_imm_multiplier = np.ones(len(people))
-    
+     
     if pars.use_nab_framework:
         nab_eff = pars.nab_eff
-        current_nabs = sc.dcp(people.nab[pathogen])
+        current_nabs = sc.dcp(people.nab[pathogen]) 
     else:
         current_imm = sc.dcp(people.imm_level[pathogen])
 
     date_rec = people.date_p_recovered[pathogen]  # Date recovered
     is_vacc = cvu.true(people.vaccinated)  # Vaccinated
     vacc_source = people.vaccine_source[is_vacc]
-    was_inf = cvu.true(people.t >= people.date_p_recovered[pathogen])  # Had a previous exposure, now recovered
-    was_inf_same = cvu.true((people.p_recovered_variant[pathogen] == variant) & (people.t >= date_rec))  # Had a previous exposure to the same variant, now recovered
+
+    was_inf = cvu.true((people.t >= people.date_p_recovered[pathogen])& (people.dead == False))  # Had a previous exposure, now recovered
+    was_inf_same = cvu.true((people.p_recovered_variant[pathogen] == variant) & (people.t >= date_rec) & (people.dead== False))  # Had a previous exposure to the same variant, now recovered
+
     was_inf_diff = np.setdiff1d(was_inf, was_inf_same)  # Had a previous exposure to a different variant, now recovered
     variant_was_inf_diff = people.p_recovered_variant[pathogen, was_inf_diff]
+       
+    #print(f'{people.date_p_recovered[pathogen,2489]} with variant {people.p_recovered_variant[pathogen, 2489]} with pathogen {pathogen}') 
     variant_was_inf_diff = variant_was_inf_diff.astype(cvd.default_int)
-
+      
     v_cross_imm_multiplier[was_inf_same] = v_cross_imm[variant]
     v_cross_imm_multiplier[was_inf_diff] = [v_cross_imm[i] for i in variant_was_inf_diff]
 
@@ -266,9 +270,8 @@ def check_immunity(people, variant, pathogen):
         people.symp_imm[pathogen,variant,:] = calc_VE(current_nabs, 'symp', nab_eff)
         people.sev_imm[pathogen, variant,:]  = calc_VE(current_nabs, 'sev',  nab_eff)
     else:
-        current_imm *= v_cross_imm_multiplier
-
-        clamped_current_imm = cvu.clamp_np_arr(current_imm, 0, pars['pathogens'][pathogen].imm_max)
+        current_imm *= v_cross_imm_multiplier 
+        clamped_current_imm = cvu.clamp_np_arr(current_imm, 0, pars['pathogens'][pathogen].imm_peak)
          
         people.sus_imm[pathogen,variant,:]  = clamped_current_imm
         people.symp_imm[pathogen,variant,:] = clamped_current_imm

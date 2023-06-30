@@ -80,7 +80,7 @@ class test_covSimWithInterventions(unittest.TestCase):
         sim.run()
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_vaccinateNumAndBoosters_{k}.baseline')  
-            self.assertEqual(True if expected_result==sim.results[k] else False, True)
+            self.assertEqual(True if expected_result==sim.results[0][k] else False, True)
 
     def test_changeBeta(self):
         pathogen = inf.SARS_COV_2(50) 
@@ -88,7 +88,7 @@ class test_covSimWithInterventions(unittest.TestCase):
         sim.run()
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_changeBeta_{k}.baseline')  
-            self.assertEqual(True if expected_result==sim.results[k] else False, True)
+            self.assertEqual(True if expected_result==sim.results[0][k] else False, True)
     '''
     def test_contactTracing(self):
         pop = sc.loadobj(f'{full_path}/test_infPop_bhPopulation.ppl')
@@ -108,13 +108,13 @@ def generate_baseline():
     sim = inf.Sim(pars1,pathogens = [pathogen])
     sim.run()
     for k in result_keys:
-        sc.saveobj(f'{full_path}/test_vaccinateNumAndBoosters_{k}.baseline', sim.results[k]) 
+        sc.saveobj(f'{full_path}/test_vaccinateNumAndBoosters_{k}.baseline', sim.results[0][k]) 
         
     pathogen = inf.SARS_COV_2(50) 
     sim = inf.Sim(pars2,pathogens = [pathogen])
     sim.run()
     for k in result_keys:
-        sc.saveobj(f'{full_path}/test_changeBeta_{k}.baseline', sim.results[k]) 
+        sc.saveobj(f'{full_path}/test_changeBeta_{k}.baseline', sim.results[0][k]) 
 
     '''
     pop = sc.loadobj(f'{full_path}/test_infPop_bhPopulation.ppl')

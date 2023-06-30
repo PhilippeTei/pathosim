@@ -858,6 +858,7 @@ class MultiSim(cvb.FlexPretty):
         return self.base_sim.to_excel(*args, **kwargs)
 
 
+#!!OBSOLETE WILL NOT WORK
 class Scenarios(cvb.ParsObj):
     '''
     Class for running multiple sets of multiple simulations -- e.g., scenarios.

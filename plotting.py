@@ -389,7 +389,7 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
             for resnum,reskey in enumerate(keylabels):
                 res_t = sim.results['date']
                 if reskey in variant_keys:
-                    res = sim.results['variant'][reskey]
+                    res = sim.results[0]['variant'][reskey]
                     ns = sim.pathogens[0].n_variants
                     variant_colors = sc.gridcolors(ns)
                     for variant in range(ns):
@@ -405,7 +405,7 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
                             ax.fill_between(res_t, res.low[variant,:], res.high[variant,:], color=color, **args.fill)  # Create the uncertainty bound
                         ax.plot(res_t, res.values[variant,:], label=label, **args.plot, c=color)  # Actually plot the sim!
                 else:
-                    res = sim.results[reskey]
+                    res = sim.results[0][reskey]
                     color = set_line_options(colors, reskey, resnum, res.color)  # Choose the color
                     label = set_line_options(labels, reskey, resnum, res.name)  # Choose the label
                     if res.low is not None and res.high is not None:
@@ -444,7 +444,7 @@ def plot_scens(to_plot=None, scens=None, do_save=None, fig_path=None, fig_args=N
             reskeys = sc.promotetolist(reskeys) # In case it's a string
             for reskey in reskeys:
                 res_t = scens.datevec
-                resdata = scens.results[reskey]
+                resdata = scens.results[0][reskey]
                 for snum,scenkey,scendata in resdata.enumitems():
                     sim = scens.sims[scenkey][0] # Pull out the first sim in the list for this scenario
                     variant_keys = sim.result_keys('variant')
@@ -480,7 +480,7 @@ def plot_scens(to_plot=None, scens=None, do_save=None, fig_path=None, fig_args=N
 
 def plot_result(key, sim=None, fig_args=None, plot_args=None, axis_args=None, scatter_args=None,
                 date_args=None, style_args=None, grid=False, commaticks=True, setylim=True, color=None, label=None,
-                do_show=None, do_save=False, fig_path=None, fig=None, ax=None, **kwargs):
+                do_show=None, do_save=False, fig_path=None, fig=None, ax=None, pathogen = 0, **kwargs):
     ''' Plot a single result -- see ``cv.Sim.plot_result()`` for documentation '''
 
     # Handle inputs
@@ -491,7 +491,7 @@ def plot_result(key, sim=None, fig_args=None, plot_args=None, axis_args=None, sc
                        date_args=date_args, style_args=style_args, **kwargs)
 
     # Gather results
-    res = sim.results[key]
+    res = sim.results[pathogen][key]
     res_t = sim.results['date']
     if color is None:
         color = res.color

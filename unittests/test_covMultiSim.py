@@ -42,7 +42,7 @@ class test_covMultiSim(unittest.TestCase):
 
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covMultiSim{k}.baseline')  
-            self.assertEqual(True if expected_result==msim.results[k] else False, True)
+            self.assertEqual(True if expected_result==msim.results[0][k] else False, True)
 
 
              
@@ -58,7 +58,7 @@ def generate_baseline():
     msim.reduce()
 
     for k in result_keys:
-        sc.saveobj(f'{full_path}/test_covMultiSim{k}.baseline', msim.results[k])   
+        sc.saveobj(f'{full_path}/test_covMultiSim{k}.baseline', msim.results[0][k])   
 
     return
 

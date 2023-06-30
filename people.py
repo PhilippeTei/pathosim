@@ -216,19 +216,23 @@ class People(cvb.BasePeople):
 
     def init_flows(self):
         ''' Initialize flows to be zero '''
-        self.flows = {key:0 for key in cvd.new_result_flows}
+        self.flows = {}
         self.flows_variant = {}
-        for key in cvd.new_result_flows_by_variant:
-            self.flows_variant[key] = np.zeros(self.pars['pathogens'][0].n_variants, dtype=cvd.default_float)
-        if self.pars['enable_smartwatches']:
-            for key in cvd.new_result_flows_smartwatches:
-                self.flows[key] = 0
-        if self.pars['enable_multiregion']:
-            targets = ['new_diagnoses', 'new_severe']
-            regions = self.pars['multiregion']['rnames']
-            for target in targets:
-                for region in regions:
-                    self.flows[f'{region}_{target}'] = 0
+
+        for p in range(len(self.pars['pathogens'])):
+            self.flows[p] = {key:0 for key in cvd.new_result_flows}
+            self.flows_variant[p] = {}
+            for key in cvd.new_result_flows_by_variant:
+                self.flows_variant[p][key] = np.zeros(self.pars['pathogens'][p].n_variants, dtype=cvd.default_float)
+            if self.pars['enable_smartwatches']:
+                for key in cvd.new_result_flows_smartwatches:
+                    self.flows[p][key] = 0
+            if self.pars['enable_multiregion']:
+                targets = ['new_diagnoses', 'new_severe']
+                regions = self.pars['multiregion']['rnames']
+                for target in targets:
+                    for region in regions:
+                        self.flows[p][f'{region}_{target}'] = 0
         return
 
     def initialize(self, sim_pars=None):
@@ -303,28 +307,31 @@ class People(cvb.BasePeople):
         return tp, fn, tn, fp
 
 
-    def update_states_pre(self, t, pathogen = 0):
+    def update_states_pre(self, t):
         ''' Perform all state updates at the current timestep '''
 
         # Initialize
         self.t = t
-        self.is_exp = self.true_with_index('p_exposed', pathogen) # For storing the interim values since used in every subsequent calculation
-
-        # Perform updates
+          
+        self.is_exp = []
+        
         self.init_flows()
-        self.flows['new_infectious']    += self.check_infectious(pathogen = pathogen) # For people who are exposed and not infectious, check if they begin being infectious
-        self.flows['new_symptomatic']   += self.check_symptomatic(pathogen = pathogen)
+        for pathogen in range(len(self.pars['pathogens'])):
+            self.is_exp.append(self.true_with_index('p_exposed', pathogen)) # For storing the interim values since used in every subsequent calculation 
+            # Perform updates
+            self.flows[pathogen]['new_infectious']    += self.check_infectious(pathogen = pathogen) # For people who are exposed and not infectious, check if they begin being infectious
+            self.flows[pathogen]['new_symptomatic']   += self.check_symptomatic(pathogen = pathogen)
 
-        if self.pars['enable_multiregion']:
-            self.flows['new_severe']        += self.check_severe_mr(pathogen = pathogen)
-        else:
-            self.flows['new_severe']        += self.check_severe(pathogen = pathogen)
+            if self.pars['enable_multiregion']:
+                self.flows[pathogen]['new_severe']        += self.check_severe_mr(pathogen = pathogen)
+            else:
+                self.flows[pathogen]['new_severe']        += self.check_severe(pathogen = pathogen)
 
-        self.flows['new_critical']      += self.check_critical(pathogen = pathogen)
-        self.flows['new_recoveries']    += self.check_recovery(pathogen = pathogen)
-        new_deaths, new_known_deaths     = self.check_death(pathogen = pathogen)
-        self.flows['new_deaths']        += new_deaths
-        self.flows['new_known_deaths']  += new_known_deaths
+            self.flows[pathogen]['new_critical']      += self.check_critical(pathogen = pathogen)
+            self.flows[pathogen]['new_recoveries']    += self.check_recovery(pathogen = pathogen)
+            new_deaths, new_known_deaths     = self.check_death(pathogen = pathogen)
+            self.flows[pathogen]['new_deaths']        += new_deaths
+            self.flows[pathogen]['new_known_deaths']  += new_known_deaths
 
         self.merge_states(self.pars['n_pathogens'], False, False)
         return
@@ -334,24 +341,25 @@ class People(cvb.BasePeople):
         ''' Perform post-timestep updates '''
 
         if self.pars['enable_multiregion']:
-            self.flows['new_diagnoses'] += self.check_diagnosed_mr(pathogen = pathogen)
+            self.flows[pathogen]['new_diagnoses'] += self.check_diagnosed_mr(pathogen = pathogen)
         else:
-            self.flows['new_diagnoses'] += self.check_diagnosed(pathogen = pathogen)
-        self.flows['new_quarantined'] += self.check_quar()
+            self.flows[pathogen]['new_diagnoses'] += self.check_diagnosed(pathogen = pathogen)
+        self.flows[pathogen]['new_quarantined'] += self.check_quar()
 
         # Take care of smartwatch calculations
         if self.pars['enable_smartwatches']:
             tp, fn, tn, fp = self.check_alert_accuracy()
-            self.flows['new_alerts_tp'] += tp
-            self.flows['new_alerts_fn'] += fn
-            self.flows['new_alerts_tn'] += tn
-            self.flows['new_alerts_fp'] += fp
-            self.flows['new_alerted'] += self.check_alerted()
+            self.flows[pathogen]['new_alerts_tp'] += tp
+            self.flows[pathogen]['new_alerts_fn'] += fn
+            self.flows[pathogen]['new_alerts_tn'] += tn
+            self.flows[pathogen]['new_alerts_fp'] += fp
+            self.flows[pathogen]['new_alerted'] += self.check_alerted()
             sw_quar, sw_i_quar = self.check_sw_quarantined() # Update the number of smartwatch users quarantined. 
-            self.flows['new_Q_w'] += sw_quar
-            self.flows['new_Q_w_i'] += sw_i_quar
+            self.flows[pathogen]['new_Q_w'] += sw_quar
+            self.flows[pathogen]['new_Q_w_i'] += sw_i_quar
 
-        del self.is_exp  # Tidy up
+        if pathogen == 0:
+            del self.is_exp  # Tidy up
 
         return
 
@@ -492,7 +500,7 @@ class People(cvb.BasePeople):
     #region
     def check_infectious(self, pathogen = 0):
         ''' Check if they become infectious with the pathogen index passed'''
-        inds = self.check_inds(self.p_infectious[pathogen], self.date_p_infectious[pathogen], filter_inds=self.is_exp)
+        inds = self.check_inds(self.p_infectious[pathogen], self.date_p_infectious[pathogen], filter_inds=self.is_exp[pathogen])
         self.p_infectious[pathogen, inds] = True 
         self.p_infectious_variant[pathogen, inds] = self.p_exposed_variant[pathogen,inds]
 
@@ -523,7 +531,7 @@ class People(cvb.BasePeople):
         for variant in range(self.pars['pathogens'][pathogen].n_variants):
             this_variant_inds = cvu.itrue(self.p_infectious_variant[pathogen, inds] == variant, inds)
             n_this_variant_inds = len(this_variant_inds)
-            self.flows_variant['new_infectious_by_variant'][variant] += n_this_variant_inds
+            self.flows_variant[pathogen]['new_infectious_by_variant'][variant] += n_this_variant_inds
 
             #TODO change that array and update this 
             self.p_infectious_by_variant[pathogen,variant, this_variant_inds] = True 
@@ -532,7 +540,7 @@ class People(cvb.BasePeople):
 
     def check_symptomatic(self, pathogen = 0):
         ''' Check for new progressions to symptomatic '''
-        inds = self.check_inds(self.p_symptomatic[pathogen], self.date_p_symptomatic[pathogen], filter_inds=self.is_exp)
+        inds = self.check_inds(self.p_symptomatic[pathogen], self.date_p_symptomatic[pathogen], filter_inds=self.is_exp[pathogen])
         
         self.p_symptomatic[pathogen, inds] = True
         return len(inds)
@@ -540,7 +548,7 @@ class People(cvb.BasePeople):
     def check_severe_mr(self, pathogen = 0):
         ''' Check for new progressions to severe. Update flows for each region. '''
         # Main result
-        inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp)
+        inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp[pathogen])
         
         #  STRATIFICATION
         if self.pars['enable_stratifications']:
@@ -571,7 +579,7 @@ class People(cvb.BasePeople):
         for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
             # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
             num_inds = np.sum((inds >= rstart) & (inds < rstart+rsize))
-            self.flows[f'{rname}_new_severe'] += num_inds
+            self.flows[pathogen][f'{rname}_new_severe'] += num_inds
             
         self.p_severe[pathogen,inds] = True
 
@@ -582,7 +590,7 @@ class People(cvb.BasePeople):
 
     def check_severe(self, pathogen = 0):
         ''' Check for new progressions to severe '''
-        inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp)
+        inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp[pathogen])
         
         #  STRATIFICATION
         if self.pars['enable_stratifications']:
@@ -612,7 +620,7 @@ class People(cvb.BasePeople):
 
     def check_critical(self,pathogen = 0):
         ''' Check for new progressions to critical '''
-        inds = self.check_inds(self.p_critical[pathogen], self.date_p_critical[pathogen], filter_inds=self.is_exp)
+        inds = self.check_inds(self.p_critical[pathogen], self.date_p_critical[pathogen], filter_inds=self.is_exp[pathogen])
         self.p_critical[pathogen,inds] = True
         return len(inds)
 
@@ -627,19 +635,18 @@ class People(cvb.BasePeople):
 
         # Handle more flexible options for setting indices
         if filter_inds == 'is_exp':
-            filter_inds = self.is_exp
+            filter_inds = self.is_exp[pathogen]
         if inds is None:
             inds = self.check_inds(self.p_recovered[pathogen], self.date_p_recovered[pathogen], filter_inds=filter_inds)
              
-        
         self.p_exposed[pathogen,inds]          = False
         self.p_infectious[pathogen,inds]       = False
         self.p_symptomatic[pathogen,inds]      = False
         self.p_severe[pathogen,inds]           = False
         self.p_critical[pathogen,inds]         = False
         self.p_recovered[pathogen,inds]        = True 
-
-        self.p_recovered_variant[pathogen,inds] = self.p_exposed_variant[pathogen,inds]
+           
+        self.p_recovered_variant[pathogen,inds] = self.p_exposed_variant[pathogen,inds] 
         self.p_infectious_variant[pathogen,inds] = np.nan
         self.p_exposed_variant[pathogen,inds]    = np.nan
          
@@ -657,13 +664,13 @@ class People(cvb.BasePeople):
         # # Handle instances of false positive diagnoses; if someone is not exposed, is diagnosed, and has passed the required time in isolation, un-diagnose them
         # fp_diagnoses = cvu.true((~self.exposed) & (self.diagnosed) & (self.t - self.date_diagnosed >= 14))
         # self.diagnosed[fp_diagnoses] = False
-
+        
         return len(inds)
 
 
     def check_death(self, pathogen= 0):
         ''' Check whether or not this person died on this timestep  '''
-        inds = self.check_inds(self.p_dead[pathogen], self.date_p_dead[pathogen], filter_inds=self.is_exp)
+        inds = self.check_inds(self.p_dead[pathogen], self.date_p_dead[pathogen], filter_inds=self.is_exp[pathogen])
     
         #  STRATIFICATION
         if self.pars['enable_stratifications']:
@@ -691,6 +698,7 @@ class People(cvb.BasePeople):
          
         diag_inds = inds[self.p_diagnosed[pathogen, inds]] # Check whether the person was diagnosed before dying
         self.known_dead[diag_inds]  = True
+        self.dead[inds]  = True
         self.susceptible[inds]      = False
         self.exposed[inds]          = False
         self.infectious[inds]       = False
@@ -702,16 +710,19 @@ class People(cvb.BasePeople):
         self.recovered[inds]        = False 
         
         self.p_dead[pathogen,inds]             = True 
-        self.p_susceptible[pathogen,inds]      = False
-        self.p_exposed[pathogen,inds]          = False
-        self.p_infectious[pathogen,inds]       = False
-        self.p_symptomatic[pathogen,inds]      = False
-        self.p_severe[pathogen,inds]           = False
-        self.p_critical[pathogen,inds]         = False  
-        self.p_recovered[pathogen,inds]        = False
-        self.p_infectious_variant[pathogen,inds] = np.nan
-        self.p_exposed_variant[pathogen,inds]    = np.nan
-        self.p_recovered_variant[pathogen,inds]  = np.nan
+
+        for i in range(len(self.pars['pathogens'])):
+            self.p_susceptible[i,inds]      = False
+            self.p_exposed[i,inds]          = False
+            self.p_infectious[i,inds]       = False
+            self.p_symptomatic[i,inds]      = False
+            self.p_severe[i,inds]           = False
+            self.p_critical[i,inds]         = False  
+            self.p_recovered[i,inds]        = False
+            self.p_infectious_variant[i,inds] = np.nan 
+            self.p_exposed_variant[i,inds]    = np.nan
+            self.p_recovered_variant[i,inds]  = np.nan 
+
         return len(inds), len(diag_inds)
 
 
@@ -749,7 +760,7 @@ class People(cvb.BasePeople):
             # Get the people who are exposed for this variant, and have a positive test. 
             # TODO: exposed_variant ok? 
             var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
-            self.flows_variant['new_diagnoses_by_variant'][variant] += var_count
+            self.flows_variant[pathogen]['new_diagnoses_by_variant'][variant] += var_count
 
         #### REGIONAL RESULTS
         rnames = self.pars['multiregion']['rnames']
@@ -759,7 +770,7 @@ class People(cvb.BasePeople):
         for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
             # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
             num_inds = np.sum((test_pos_inds >= rstart) & (test_pos_inds < rstart+rsize))
-            self.flows[f'{rname}_new_diagnoses'] += num_inds
+            self.flows[pathogen][f'{rname}_new_diagnoses'] += num_inds
 
         self.date_pos_test[test_pos_inds] = np.nan # Clear date of having will-be-positive test
         
@@ -815,7 +826,7 @@ class People(cvb.BasePeople):
             # Get the people who are exposed for this variant, and have a positive test. 
             # TODO: exposed_variant ok? 
             var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
-            self.flows_variant['new_diagnoses_by_variant'][variant] += var_count
+            self.flows_variant[pathogen]['new_diagnoses_by_variant'][variant] += var_count
 
         # STRATIFICATIONS
         inds = test_pos_inds
@@ -1027,12 +1038,15 @@ class People(cvb.BasePeople):
         durpars      = self.pars['pathogens'][pathogen_index].dur
         
         # Retrieve those with a breakthrough infection (defined nabs)
-        breakthrough_inds = inds[cvu.true(self.peak_nab[pathogen_index,inds])]
-        if len(breakthrough_inds):
-            no_prior_breakthrough = (self.n_breakthroughs[pathogen_index, breakthrough_inds] == 0) # We only adjust transmissibility for the first breakthrough
-            new_breakthrough_inds = breakthrough_inds[no_prior_breakthrough]
-            self.rel_trans[pathogen_index, new_breakthrough_inds] *= self.pars['pathogens'][pathogen_index].trans_redux
-            
+        if self.pars['pathogens'][pathogen_index].use_nab_framework:
+            breakthrough_inds = inds[cvu.true(self.peak_nab[pathogen_index,inds])]
+            if len(breakthrough_inds):
+                no_prior_breakthrough = (self.n_breakthroughs[pathogen_index, breakthrough_inds] == 0) # We only adjust transmissibility for the first breakthrough
+                new_breakthrough_inds = breakthrough_inds[no_prior_breakthrough]
+                self.rel_trans[pathogen_index, new_breakthrough_inds] *= self.pars['pathogens'][pathogen_index].trans_redux
+        else:
+            breakthrough_inds = []
+
         # Update states, variant info, and flows 
         self.p_susceptible[pathogen_index, inds]    = False
         self.p_naive[pathogen_index, inds]          = False
@@ -1047,9 +1061,9 @@ class People(cvb.BasePeople):
         self.p_exposed_by_variant[pathogen_index,variant, inds] = True
          
         #TODO change that to multipathogen
-        self.flows['new_infections']   += len(inds)
-        self.flows['new_reinfections'] += len(cvu.defined(self.date_p_recovered[pathogen_index, inds])) # Record reinfections
-        self.flows_variant['new_infections_by_variant'][variant] += len(inds)
+        self.flows[pathogen_index]['new_infections']   += len(inds)
+        self.flows[pathogen_index]['new_reinfections'] += len(cvu.defined(self.date_p_recovered[pathogen_index, inds])) # Record reinfections
+        self.flows_variant[pathogen_index]['new_infections_by_variant'][variant] += len(inds)
         
         # Record transmissions
         for i, target in enumerate(inds):
@@ -1064,14 +1078,13 @@ class People(cvb.BasePeople):
          
         #set peak immunity  date:
         if not self.pars['pathogens'][pathogen_index].use_nab_framework:
-            self['t_peak_imm'][pathogen_index, inds] = self.t + self.pars['pathogens'][pathogen_index].imm_days_to_max
+            self['t_peak_imm'][pathogen_index, inds] = self.t + self.pars['pathogens'][pathogen_index].imm_days_to_peak
             inds_zeros = np.intersect1d(np.where(self['imm_level'][pathogen_index] <= 0.001), inds)
             self['imm_level'][pathogen_index, inds_zeros] = 0.005 
 
-        # Reset all other dates
+        # Reset all other dates  
         for key in ['date_symptomatic', 'date_severe', 'date_critical', 'date_diagnosed', 'date_recovered']:
             self[key][inds] = np.nan
-        
         for key in ['date_p_symptomatic', 'date_p_severe', 'date_p_critical', 'date_p_diagnosed', 'date_p_recovered']:
             self[key][pathogen_index, inds] = np.nan
 
@@ -1080,7 +1093,7 @@ class People(cvb.BasePeople):
         is_symp = cvu.binomial_arr(symp_probs) # Determine if they develop symptoms
         symp_inds = inds[is_symp]
         asymp_inds = inds[~is_symp] # Asymptomatic
-        self.flows_variant['new_symptomatic_by_variant'][variant] += len(symp_inds)
+        self.flows_variant[pathogen_index]['new_symptomatic_by_variant'][variant] += len(symp_inds)
 
         # CASE 1: Asymptomatic: may infect others, but have no symptoms and do not die
         dur_asym2rec = cvu.sample(**durpars['asym2rec'], size=len(asymp_inds))
@@ -1088,7 +1101,7 @@ class People(cvb.BasePeople):
         self.date_p_recovered[pathogen_index, asymp_inds] = self.date_p_infectious[pathogen_index, asymp_inds] + dur_asym2rec  # Date they recover. PxN.
 
         self.dur_disease[pathogen_index, asymp_inds] = self.dur_exp2inf[pathogen_index, asymp_inds] + dur_asym2rec  # Store how long this person had COVID-19. Nx1.  
-
+        
         # CASE 2: Symptomatic: can either be mild, severe, or critical
         n_symp_inds = len(symp_inds)
         self.dur_inf2sym[pathogen_index, symp_inds] = cvu.sample(**durpars['inf2sym'], size=n_symp_inds) # Store how long this person took to develop symptoms  
@@ -1097,7 +1110,7 @@ class People(cvb.BasePeople):
         is_sev = cvu.binomial_arr(sev_probs) # See if they're a severe or mild case
         sev_inds = symp_inds[is_sev]
         mild_inds = symp_inds[~is_sev] # Not severe
-        self.flows_variant['new_severe_by_variant'][variant] += len(sev_inds)
+        self.flows_variant[pathogen_index]['new_severe_by_variant'][variant] += len(sev_inds)
 
         # CASE 2.1: Mild symptoms, no hospitalization required and no probability of death
         dur_mild2rec = cvu.sample(**durpars['mild2rec'], size=len(mild_inds))
@@ -1138,10 +1151,11 @@ class People(cvb.BasePeople):
         self.date_p_recovered[pathogen_index,dead_inds] = np.nan # If they did die, remove them from recovered
 
         
+
         if not self.pars['pathogens'][pathogen_index].use_nab_framework:
             rec_inds = list(set(inds) - set(dead_inds))
-            self['t_min_imm'][pathogen_index, rec_inds] = self.date_p_recovered[pathogen_index, rec_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_min
-            self['t_min_imm'][pathogen_index, dead_inds] = self.date_p_dead[pathogen_index, dead_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_min
+            self['t_min_imm'][pathogen_index, rec_inds] = self.date_p_recovered[pathogen_index, rec_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_final_value
+            self['t_min_imm'][pathogen_index, dead_inds] = self.date_p_dead[pathogen_index, dead_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_final_value
 
         # HANDLE VIRAL LOAD CONTROL POINTS
        
@@ -1179,11 +1193,12 @@ class People(cvb.BasePeople):
             #     self.pars['y_p_inf'][:, self.t] = self.y_p_inf
             #     self.pars['y_p2'][:, self.t] = self.y_p2
             #     self.pars['y_p3'][:, self.t] = self.y_p3
-        self.merge_states(self.pars['n_pathogens'], False, True)
         # Handle immunity aspects
-        if self.pars['use_waning']:
+        if self.pars['pathogens'][pathogen_index].use_nab_framework: 
             symp = dict(asymp=asymp_inds, mild=mild_inds, sev=sev_inds)
-            cvi.update_peak_nab(self, inds, nab_pars=self.pars['pathogens'][pathogen_index], symp=symp)
+            cvi.update_peak_nab(self, inds, nab_pars=self.pars['pathogens'][pathogen_index], symp=symp, pathogen = pathogen_index)
+            
+        self.merge_states(self.pars['n_pathogens'], False, True)
 
         return n_infections # For incrementing counters
 
@@ -1233,22 +1248,23 @@ class People(cvb.BasePeople):
             for state in states_to_merge_with_AND:
                 inds_with_state = np.logical_not(self[f'p_{state}'][i]).nonzero()[0] 
                 self[f'{state}'][inds_with_state] = False 
-                 
+         
         if merge_dates:
             for state in states_to_merge_with_OR+states_to_merge_with_AND:
-                self.set_overral_state_date(state, n_pathogens, True if state in states_to_merge_with_OR else False) 
+                self.set_overall_state_date(state, n_pathogens, True if state in states_to_merge_with_OR else False) 
+         
 
 
                  
   
-    def set_overral_state_date(self, state_key, n_pathogens, useMin = True):   
-        v = self[f'date_p_{state_key}'][0]
+    def set_overall_state_date(self, state_key, n_pathogens, useMin = True):   
+        v = np.copy(self[f'date_p_{state_key}'][0])
         for i in range(n_pathogens): 
             if(useMin): 
                 v = cvu.custom_np_fmin(self[f'date_p_{state_key}'][i], v, size = self.pars['pop_size'])
             else: 
                 v = cvu.custom_np_fmax(self[f'date_p_{state_key}'][i], v, size = self.pars['pop_size'])
-         
+          
         self[f'date_{state_key}'] = v
              
 

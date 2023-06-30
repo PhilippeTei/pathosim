@@ -243,8 +243,9 @@ class BaseSim(ParsObj):
         # Try to get a detailed description of the sim...
         try:
             if self.results_ready:
-                infections = self.summary['cum_infections']
-                deaths = self.summary['cum_deaths']
+             
+                infections = self.summary[0]['cum_infections']
+                deaths = self.summary[0]['cum_deaths']
                 results = f'{infections:n}⚙, {deaths:n}☠'
             else:
                 results = 'not run'
@@ -432,7 +433,7 @@ class BaseSim(ParsObj):
         return dates
 
 
-    def result_keys(self, which='main'):
+    def result_keys(self, which='main', pathogen_index = 0):
         '''
         Get the actual results objects, not other things stored in sim.results.
 
@@ -443,9 +444,9 @@ class BaseSim(ParsObj):
         keys = []
         choices = ['main', 'variant', 'all']
         if which in ['main', 'all']:
-            keys += [key for key,res in self.results.items() if isinstance(res, Result)]
-        if which in ['variant', 'all'] and 'variant' in self.results:
-            keys += [key for key,res in self.results['variant'].items() if isinstance(res, Result)]
+            keys += [key for key,res in self.results[pathogen_index].items() if isinstance(res, Result)]
+        if which in ['variant', 'all'] and 'variant' in self.results[pathogen_index]:
+            keys += [key for key,res in self.results[pathogen_index]['variant'].items() if isinstance(res, Result)]
         if which not in choices: # pragma: no cover
             errormsg = f'Choice "which" not available; choices are: {sc.strjoin(choices)}'
             raise ValueError(errormsg)
@@ -1122,20 +1123,27 @@ class BasePeople(FlexPretty):
         return np.isnan(self[key]).nonzero()[0]
 
 
-    def count(self, key):
+    def count2d(self, key, pathogen):
+        ''' Count the number of people for a given key '''
+        return np.count_nonzero(self[key][pathogen])
+    
+    def count1d(self, key):
         ''' Count the number of people for a given key '''
         return np.count_nonzero(self[key])
-
 
     def count_by_variant(self, key, variant, pathogen):
         ''' Count the number of people for a given key '''
         return np.count_nonzero(self[key][pathogen,variant,:])
 
-    def r_count(self, key, i_start, i_end):
+    def r_count2d(self, key, i_start, i_end, pathogen):
+        ''' Count the number of people for a given key in the half-open
+        interval [i_start, i_end), for the given range of people id's. '''
+        return np.count_nonzero(self[key][pathogen, i_start:i_end])
+    
+    def r_count1d(self, key, i_start, i_end):
         ''' Count the number of people for a given key in the half-open
         interval [i_start, i_end), for the given range of people id's. '''
         return np.count_nonzero(self[key][i_start:i_end])
-
 
     def r_count_by_variant(self, key, variant, i_start, i_end, pathogen):
         ''' Count the number of people for a given key. In a range, as above. '''
@@ -1144,7 +1152,7 @@ class BasePeople(FlexPretty):
 
     def count_not(self, key):
         ''' Count the number of people who do not have a property for a given key '''
-        return len(self[key]) - self.count(key)
+        return len(self[key]) - np.count_nonzero(self[key])
 
 
     def keys(self):

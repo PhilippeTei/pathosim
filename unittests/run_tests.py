@@ -6,6 +6,7 @@ import test_mortality as t4
 import test_covSimInterventions as t5 
 import test_covVariantsSim as t6
 import test_mergeStates as t7
+import test_multi_pathogen as t8
 
 #To run ALL unittests:
 #python run_tests.py
@@ -47,6 +48,9 @@ def all_tests():
 
     #test merge states functions 
     suite.addTest(t7.test_mergeStates("test_mergeStates"))
+
+    #test multi-pathogen simulations 
+    suite.addTest(t8.test_multi_pathogen_sim("test_multi_cov"))
      
      
     return suite

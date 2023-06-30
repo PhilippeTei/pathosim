@@ -1630,8 +1630,8 @@ class BaseVaccination(Intervention):
 
             if t >= 0: # Only record these quantities by default if it's not a historical dose
                 factor = sim['pop_scale']/sim.rescale_vec[t] # Scale up by pop_scale, but then down by the current rescale_vec, which gets applied again when results are finalized
-                sim.people.flows['new_doses']      += len(vacc_inds)*factor # Count number of doses given
-                sim.people.flows['new_vaccinated'] += len(new_vacc)*factor # Count number of people not already vaccinated given doses
+                sim.people.flows[0]['new_doses']      += len(vacc_inds)*factor # Count number of doses given
+                sim.people.flows[0]['new_vaccinated'] += len(new_vacc)*factor # Count number of people not already vaccinated given doses
 
         return vacc_inds
 
@@ -2307,10 +2307,10 @@ class historical_wave(Intervention):
                 people.infect(wave_inds[inds], layer='historical', variant=variants[wave])
 
             for fkey in flow_keys_to_save:
-                flows[fkey] += people.flows[fkey]
+                flows[fkey] += people.flows[0][fkey]
             for v in range(nv):
                 for fkey in flow_variant_keys_to_save:
-                    flows_variant[fkey][v] += people.flows_variant[fkey][v]
+                    flows_variant[fkey][v] += people.flows_variant[0][fkey][v]
 
             # this is potentially an issue with multiple waves close together as someone who is technically still
             # exposed from the first wave would be re-exposed during the second (assuming they are recovered by t=0)
@@ -2318,17 +2318,17 @@ class historical_wave(Intervention):
 
             # Update counts for t=0 step: flows
             # Does this count the seed infections twice?
-            for key,count in people.flows.items():
+            for key,count in people.flows[0].items():
                 sim.results[key][0] += count
 
-            for key,count in people.flows_variant.items():
+            for key,count in people.flows_variant[0].items():
                 for variant in range(nv):
                     sim.results['variant'][key][variant][0] += count[variant]
 
-            for key,count in flows.items():
+            for key,count in flows[0].items():
                 sim.results[key][0] += count
 
-            for key,count in flows_variant.items():
+            for key,count in flows_variant[0].items():
                 for v in range(nv):
                     sim.results['variant'][key][v][0] += count[v]
 

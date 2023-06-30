@@ -13,7 +13,6 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         
         self.label = label
         self.pop_infected = pop_infected# Number of initial infections
-
         self.variants = [] #variants excluding wild type 
         self.make_default_pathogen_pars()
         return
@@ -23,7 +22,7 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
             for variant in self.variants:  
                 variant.initialize(sim)
                 
-        self.update_runtime_pars()
+        self.update_runtime_pars(sim)
         self.make_variant_cross_immunity_matrix() 
         self.convert_prognoses()
         return
@@ -48,7 +47,7 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         self.variants.append(variant)  
         return
     
-    def add_existing_variant(self, name = "wild", days = 0, n_imports = 10): 
+    def add_existing_variant(self, name = "wild", days = 10, n_imports = 10): 
         '''
         Add a variant to the pathogen that is already pre-configured
         '''
@@ -102,12 +101,12 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         for key in prognoses.keys():
             self.prognoses[key] = prognoses[key]
 
-    def configure_generalized_immunity(self, min_immunity = 0, max_immunity = 1, duration_to_min_immunity = 100, duration_to_max_immunity = 10):
+    def configure_generalized_immunity(self, min_immunity = 0, max_immunity = 1, duration_to_min_immunity = 180, duration_to_max_immunity = 14):
         self.use_nab_framework = False
-        self.imm_max = max_immunity
-        self.imm_min = min_immunity
-        self.imm_days_to_max = duration_to_max_immunity
-        self.imm_days_to_min = duration_to_min_immunity
+        self.imm_peak = max_immunity
+        self.imm_final_value = min_immunity
+        self.imm_days_to_peak = duration_to_max_immunity
+        self.imm_days_to_final_value = duration_to_min_immunity
 
     def configure_imports(self, imports = 0):
         self.n_imports = imports
@@ -145,10 +144,10 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
 
         #immunity
         #growth rate after infection (exponential), max immunity,  decay rate
-        self.imm_max = 1 
-        self.imm_min = 0
-        self.imm_days_to_max = 2 #How many days it takes for the immunity to reach its peak when infected, grows exponentially
-        self.imm_days_to_min = 100 
+        self.imm_peak = 0.95  
+        self.imm_final_value = 0.1
+        self.imm_days_to_peak = 14  
+        self.imm_days_to_final_value = 180 
 
 
         #Cross-variant immunity
@@ -252,6 +251,7 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
          
         if not init_arrays:
             return
+
         # Convert the dict into a np 2D array
         nv = self.n_variants
         self.immunity = np.ones((nv, nv), dtype=df.default_float)  # Fill with defaults
@@ -264,11 +264,13 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
                 if label_i in default_cross_immunity and label_j in default_cross_immunity:
                     self.immunity[j][i] = default_cross_immunity[label_j][label_i]
            
-    def update_runtime_pars(self):
+    def update_runtime_pars(self, sim):
         '''updates any parameters that should be set automatically in the beginning of a simulation'''
         self.n_variants = len(self.variants)+1
-        if self.imm_min <= 0.001:
-            self.imm_min = 0.005
+        self.pathogen_index = self.get_pathogen_index(sim)
+
+        if self.imm_final_value <= 0.001:
+            self.imm_final_value = 0.005
 
     def convert_prognoses(self):  
         out = sc.dcp(self.prognoses)
@@ -277,6 +279,13 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         out['severe_probs'] /= out['symp_probs']   # Conditional probability of symptoms becoming severe, given symptomatic
 
         self.prognoses = out
+
+    def get_pathogen_index(self, sim):
+        for p in range(len(sim.pathogens)):
+            if sim.pathogens[p] == self:
+                return p
+                
+
     #endregion
         
     class Variant(sc.prettyobj):
@@ -327,7 +336,7 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
                 if label is None:
                     label = 'custom' 
             else:
-                errormsg = f'Could not understand {type(variant)}, please specify as a dict or a predefined variant:\n{sc.pp(choices, doprint=False)}'
+                errormsg = f'Could not understand {type(variant)}, please specify as a dict or a predefined variant:\n{sc.pp(known_variant_pars.keys(), doprint=False)}'
                 raise ValueError(errormsg)
               
             self.label = label
@@ -366,7 +375,7 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
                     print(msg)
                 importation_inds = np.random.choice(susceptible_inds, n_imports, replace=False) # Can't use utls.choice() since sampling from indices
                 sim.people.infect(inds=importation_inds, layer='importation', variant=self.index, pathogen_index = self.pathogen_index)
-                sim.results['n_imports'][sim.t] += n_imports
+                sim.results[self.pathogen_index]['n_imports'][sim.t] += n_imports
             return
 
 
@@ -376,9 +385,11 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
 class SARS_COV_2(Pathogen):
     
     def make_default_pathogen_pars(self):
-         
-        self.label = "SARS-CoV-2"
+          
         super().make_default_pathogen_pars() #Only need to override the parameters you want to
+
+        if self.label == 'New_Pathogen':
+            self.label = 'SARS-CoV-2'
 
         #Basic disease transmission parameters
         self.beta_dist    = dict(dist='neg_binomial', par1=1.0, par2=0.45, step=0.01) # Distribution to draw individual level transmissibility; dispersion from https://www.researchsquare.com/article/rs-29548/v1
@@ -395,7 +406,7 @@ class SARS_COV_2(Pathogen):
         self.nab_boost    = 1.5 # Multiplicative factor applied to a person's nab levels if they get reinfected. No data on this, assumption.
         self.nab_eff      = dict(alpha_inf=1.08, alpha_inf_diff=1.812, beta_inf=0.967, alpha_symp_inf=-0.739, beta_symp_inf=0.038, alpha_sev_symp=-0.014, beta_sev_symp=0.079) # Parameters to map nabs to efficacy
         self.rel_imm_symp = dict(asymp=0.85, mild=1, severe=1.5) # Relative immunity from natural infection varies by symptoms. Assumption.
-        self.immunity     = None  # Matrix of immunity and cross-immunity factors, set by init_immunity() in immunity.py
+        self.immunity     = None   
         self.trans_redux  = 0.59  # Reduction in transmission for breakthrough infections, https://www.medrxiv.org/content/10.1101/2021.07.13.21260393v
 
            

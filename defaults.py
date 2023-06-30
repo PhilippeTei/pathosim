@@ -107,8 +107,7 @@ class PeopleMeta(sc.prettyobj):
 ]
 
          
-        # Immune states, by pathogen by variant
-        ##TODO implement them so they are changed based on the date
+        # Immune states, by pathogen by variant 
         self.imm_states = [
             'sus_imm',  # Float, by pathogen, by variant, by people,(Matrix NxNkxp, where N is the number of pathogens, and Nk the number of variants of N, whrere p is the population size)
             'symp_imm', # Float, by pathogen, by variant, by people,(Matrix NxNkxp, where N is the number of pathogens, and Nk the number of variants of N, whrere p is the population size)
@@ -244,7 +243,8 @@ result_flows_smartwatches = {'alerted': 'smartwatch alerts',
 
 result_imm = {
     'pop_nabs':       'Population average nabs',
-    'pop_protection': 'Population average protective immunity'
+    'pop_protection': 'Population average protective immunity',
+    'pop_imm': 'Population average immunity'
 }
 
 # Define new and cumulative flows
