@@ -443,17 +443,16 @@ class Sim(cvb.BaseSim):
             self.results[i]['new_diagnoses_custom']      = init_res('Number of new diagnoses with custom testing module')
             self.results[i]['cum_diagnoses_custom']      = init_res('Cumulative diagnoses with custom testing module')
 
-            # Handle variants
-            nv = self.pathogens[i].n_variants  
+            # Handle variants 
             self.results[i]['variant'] = {}
-            self.results[i]['variant']['prevalence_by_variant'] = init_res('Prevalence by variant', scale=False, n_variants=nv)
-            self.results[i]['variant']['incidence_by_variant']  = init_res('Incidence by variant', scale=False, n_variants=nv)
+            self.results[i]['variant']['prevalence_by_variant'] = init_res('Prevalence by variant', scale=False, n_variants=self.pathogens[i].n_variants)
+            self.results[i]['variant']['incidence_by_variant']  = init_res('Incidence by variant', scale=False, n_variants=self.pathogens[i].n_variants)
             for key,label in cvd.result_flows_by_variant.items():
-                self.results[i]['variant'][f'cum_{key}'] = init_res(f'Cumulative {label}', color=dcols[key], n_variants=nv)  # Cumulative variables -- e.g. "Cumulative infections"
+                self.results[i]['variant'][f'cum_{key}'] = init_res(f'Cumulative {label}', color=dcols[key], n_variants=self.pathogens[i].n_variants)  # Cumulative variables -- e.g. "Cumulative infections"
             for key,label in cvd.result_flows_by_variant.items():
-                self.results[i]['variant'][f'new_{key}'] = init_res(f'Number of new {label}', color=dcols[key], n_variants=nv) # Flow variables -- e.g. "Number of new infections"
-            for key,label in cvd.result_stocks_by_variant.items():
-                self.results[i]['variant'][f'n_{key}'] = init_res(label, color=dcols[key], n_variants=nv)
+                self.results[i]['variant'][f'new_{key}'] = init_res(f'Number of new {label}', color=dcols[key], n_variants=self.pathogens[i].n_variants) # Flow variables -- e.g. "Number of new infections"
+            for key,label in cvd.result_stocks_by_variant.items(): 
+                self.results[i]['variant'][f'n_{key}'] = init_res(label, color=dcols[key], n_variants=self.pathogens[i].n_variants)
 
             # Populate the rest of the results
             if self['rescale']:
@@ -885,6 +884,8 @@ class Sim(cvb.BaseSim):
                                   
         ##### CALCULATE STATISTICS #####
         for current_pathogen in range(len(self.pathogens)):
+
+            nv = self.pathogens[current_pathogen].n_variants
             # Update counts for this time step: stocks.
             for key in cvd.result_stocks.keys():
                 #TODO remove this filtering
@@ -895,8 +896,8 @@ class Sim(cvb.BaseSim):
 
                      
             for key in cvd.result_stocks_by_variant.keys():
-                for variant in range(nv):
-                    self.results[current_pathogen]['variant'][f'n_{key}'][variant, t] = people.count_by_variant(f'p_{key}', variant, current_pathogen)
+                for variant in range(nv): 
+                    self.results[current_pathogen]['variant'][f'n_{key}'][variant,t] = people.count_by_variant(f'p_{key}', variant, current_pathogen)
 
             # Update stock counts for multi-region.
             if self.pars['enable_multiregion']: self.update_results_mr(people, pathogen= current_pathogen) #TODO update this for multi-pathogen
