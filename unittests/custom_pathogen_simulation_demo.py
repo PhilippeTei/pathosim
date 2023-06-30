@@ -1,5 +1,5 @@
 import behaviour as bh
-import infection as inf 
+import pathosim as inf 
 import numpy as np
 
 #simulation with random population 

@@ -3,7 +3,7 @@ import numpy as np
 import numba as nb
 import copy
 import json
-from infection import utils as cvu
+from pathosim import utils as cvu
 
 
 def check_criteria(base_testobj, testobj, sim, **crit_kwargs): 

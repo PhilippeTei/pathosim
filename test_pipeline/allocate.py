@@ -4,8 +4,8 @@ import copy
 
 from itertools import combinations
 from functools import reduce
-from infection import symptoms as symptoms
-from infection.background_ILI import * 
+from pathosim import symptoms as symptoms
+from pathosim.background_ILI import * 
 
 #### Main ####
 # random_allocation

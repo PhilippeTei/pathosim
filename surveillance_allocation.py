@@ -6,7 +6,7 @@ from itertools import combinations
 from functools import reduce
 from . import utils as cvu
 from . import symptoms as symptoms
-from infection.background_ILI import * 
+from pathosim.background_ILI import * 
 
 # Abbreviations: 
 # sx: symptomatic 

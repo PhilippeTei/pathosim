@@ -745,7 +745,7 @@ class Sim(cvb.BaseSim):
         icu_max  = people.count1d('critical') > self['n_beds_icu']  if self['n_beds_icu']  is not None else False # Check for ICU bed constraint
          
         people.update_states_pre(t=t) # Update the state of everyone and count the flows. This isn't infecting people nor updating their SEIR's. The date of infection seems to be pre-assigned. 
-        #For every pathogen, import infections, and import variants
+        #For every pathogen, import pathosims, and import variants
         for current_pathogen in range(len(self.pathogens)):
             # Randomly infect some people (imported infections)
             if self.pathogens[current_pathogen].n_imports:  

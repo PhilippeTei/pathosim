@@ -2,10 +2,10 @@ import numpy as np
 import sciris as sc
 import json
 
-import infection.surveillance_allocation as sa
-import infection.surveillance_testing as st
+import pathosim.surveillance_allocation as sa
+import pathosim.surveillance_testing as st
 
-from infection.surveillance_utils import *
+from pathosim.surveillance_utils import *
 from scipy import stats
 
 # NBU = Not Being Used

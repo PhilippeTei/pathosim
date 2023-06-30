@@ -1,7 +1,7 @@
 # Classes are used to conduct COVID-19 testing on the population. 
 # The classes are defined according to the three purposes of testing: Diagnostic, Screening, and Surveillance. 
-from infection.test_pipeline import eligible as eg
-from infection.test_pipeline import seek as sk
+from pathosim.test_pipeline import eligible as eg
+from pathosim.test_pipeline import seek as sk
 import numpy as np
 import sys
 import networkx as nx

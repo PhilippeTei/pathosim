@@ -1,6 +1,6 @@
 
 import unittest
-import infection as inf 
+import pathosim as inf 
 import numpy as np
 
 class test_multi_pathogen_sim(unittest.TestCase):

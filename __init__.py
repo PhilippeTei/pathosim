@@ -1,7 +1,7 @@
 '''
 Initialize Pathosim by importing all the modules
 
-Convention is to use "import infection as inf", and then to use all functions and
+Convention is to use "import pathosim as inf", and then to use all functions and
 classes directly, e.g. inf.Sim() rather than inf.sim.Sim().
 '''
 

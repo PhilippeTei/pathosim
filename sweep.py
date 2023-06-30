@@ -1,5 +1,5 @@
-import infection as inf 
-from infection import covid_testing as ct
+import pathosim as inf 
+from pathosim import covid_testing as ct
 import behaviour as bh
 from behaviour import BehaviourModel
 import copy

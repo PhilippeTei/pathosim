@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd 
 from scipy import stats
-from infection import base_covid_testing as bct
-from infection.test_pipeline import allocate as ac
-from infection.test_pipeline import test_mechanism as tm
+from pathosim import base_covid_testing as bct
+from pathosim.test_pipeline import allocate as ac
+from pathosim.test_pipeline import test_mechanism as tm
 
 master_criteria = ['cont_conf', 
                    'cont_conf_quar',

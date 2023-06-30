@@ -1,7 +1,7 @@
 
 import unittest
 import sciris as sc 
-import infection as inf
+import pathosim as inf
 import os
  
 

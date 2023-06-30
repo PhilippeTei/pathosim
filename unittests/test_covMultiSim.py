@@ -1,5 +1,5 @@
 import unittest 
-import infection as inf 
+import pathosim as inf 
 import sciris as sc
 import os
 import numpy as np

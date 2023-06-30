@@ -1,5 +1,5 @@
 import numpy as np 
-import infection.utils as cvu
+import pathosim.utils as cvu
 
 
 class SymptomGenerator_ArrBased: 

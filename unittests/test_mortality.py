@@ -1,6 +1,6 @@
 
 import unittest
-import infection as inf 
+import pathosim as inf 
  
 
 class test_diseaseMortalityTests_COVID(unittest.TestCase):
