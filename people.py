@@ -321,11 +321,8 @@ class People(cvb.BasePeople):
             # Perform updates
             self.flows[pathogen]['new_infectious']    += self.check_infectious(pathogen = pathogen) # For people who are exposed and not infectious, check if they begin being infectious
             self.flows[pathogen]['new_symptomatic']   += self.check_symptomatic(pathogen = pathogen)
-
-            if self.pars['enable_multiregion']:
-                self.flows[pathogen]['new_severe']        += self.check_severe_mr(pathogen = pathogen)
-            else:
-                self.flows[pathogen]['new_severe']        += self.check_severe(pathogen = pathogen)
+             
+            self.flows[pathogen]['new_severe']        += self.check_severe(pathogen = pathogen)
 
             self.flows[pathogen]['new_critical']      += self.check_critical(pathogen = pathogen)
             self.flows[pathogen]['new_recoveries']    += self.check_recovery(pathogen = pathogen)
@@ -339,11 +336,8 @@ class People(cvb.BasePeople):
 
     def update_states_post(self, pathogen = 0):
         ''' Perform post-timestep updates '''
-
-        if self.pars['enable_multiregion']:
-            self.flows[pathogen]['new_diagnoses'] += self.check_diagnosed_mr(pathogen = pathogen)
-        else:
-            self.flows[pathogen]['new_diagnoses'] += self.check_diagnosed(pathogen = pathogen)
+         
+        self.flows[pathogen]['new_diagnoses'] += self.check_diagnosed(pathogen = pathogen)
         self.flows[pathogen]['new_quarantined'] += self.check_quar()
 
         # Take care of smartwatch calculations
@@ -545,49 +539,7 @@ class People(cvb.BasePeople):
         self.p_symptomatic[pathogen, inds] = True
         return len(inds)
 
-    def check_severe_mr(self, pathogen = 0):
-        ''' Check for new progressions to severe. Update flows for each region. '''
-        # Main result
-        inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp[pathogen])
-        
-        #  STRATIFICATION
-        if self.pars['enable_stratifications']:
-            for strat, strat_pars in self.pars['stratification_pars'].items():
-                metrics = strat_pars['metrics']
-
-                if 'new_severe' in metrics:
-                    bracs = strat_pars['brackets']
-                    
-                    # update the value for the current day, for each bracket.
-                    for brac in bracs:
-                        brac_name = "_".join([ str(brac[0]), str(brac[1])])
-
-                        # Count the number of individuals meeting the criteria. 
-                        if strat == 'age':
-                            num_inds = np.sum( (self.age[inds] >= brac[0]) & (self.age[inds] < brac[1]) )
-                        elif strat == 'income':
-                            num_inds = np.sum( (self.income[inds] >= brac[0]) & (self.income[inds] < brac[1]) )
-                        else:
-                            raise ValueError(f"Stratification {strat} not recognized.")
-
-                        self.stratifications[strat][brac_name]['new_severe'][self.t] += num_inds
-
-        rnames = self.pars['multiregion']['rnames']
-        rsizes = self.pars['multiregion']['rsizes']
-        rstarts = self.pars['multiregion']['rstarts']
-
-        for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
-            # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
-            num_inds = np.sum((inds >= rstart) & (inds < rstart+rsize))
-            self.flows[pathogen][f'{rname}_new_severe'] += num_inds
-            
-        self.p_severe[pathogen,inds] = True
-
-        # Assert that the sum over the regions = len(inds) -> Works. 
-        # assert np.sum(self.flows[f'{rname}_new_severe'] for rname in rnames) == len(inds)
-
-        return len(inds)
-
+ 
     def check_severe(self, pathogen = 0):
         ''' Check for new progressions to severe '''
         inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp[pathogen])
@@ -613,7 +565,18 @@ class People(cvb.BasePeople):
                             raise ValueError(f"Stratification {strat} not recognized.")
 
                         self.stratifications[strat][brac_name]['new_severe'][self.t] += num_inds
-        
+
+        if self.pars['enable_multiregion']:
+            rnames = self.pars['multiregion']['rnames']
+            rsizes = self.pars['multiregion']['rsizes']
+            rstarts = self.pars['multiregion']['rstarts']
+
+            for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
+                # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
+                num_inds = np.sum((inds >= rstart) & (inds < rstart+rsize))
+                self.flows[pathogen][f'{rname}_new_severe'] += num_inds
+            
+
         self.p_severe[pathogen, inds] = True
         return len(inds)
 
@@ -741,73 +704,7 @@ class People(cvb.BasePeople):
 
         return n_alerted
 
-
-    def check_diagnosed_mr(self, pathogen = 0):
-        '''
-        MULTI-REGION VERSION
-        Check for new diagnoses. Since most data are reported with diagnoses on
-        the date of the test, this function reports counts not for the number of
-        people who received a positive test result on a day, but rather, the number
-        of people who were tested on that day who are schedule to be diagnosed in
-        the future.
-        '''
-         
-        # Handle people who tested today who will be diagnosed in future (i.e., configure them to have have finished being tested)
-        test_pos_inds = self.check_inds(self.diagnosed, self.date_pos_test, filter_inds=None) # Find people who are not diagnosed and have a date of a positive test that is today or earlier
-
-        # Update per variant. (Written 31-05-23)
-        for variant in range(self.pars['pathogens'][pathogen].n_variants):
-            # Get the people who are exposed for this variant, and have a positive test. 
-            # TODO: exposed_variant ok? 
-            var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
-            self.flows_variant[pathogen]['new_diagnoses_by_variant'][variant] += var_count
-
-        #### REGIONAL RESULTS
-        rnames = self.pars['multiregion']['rnames']
-        rsizes = self.pars['multiregion']['rsizes']
-        rstarts = self.pars['multiregion']['rstarts']
-
-        for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
-            # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
-            num_inds = np.sum((test_pos_inds >= rstart) & (test_pos_inds < rstart+rsize))
-            self.flows[pathogen][f'{rname}_new_diagnoses'] += num_inds
-
-        self.date_pos_test[test_pos_inds] = np.nan # Clear date of having will-be-positive test
-        
-        inds = test_pos_inds
-        #### OTHER STATIFICATIONS
-        if self.pars['enable_stratifications']:
-            for strat, strat_pars in self.pars['stratification_pars'].items():
-                metrics = strat_pars['metrics']
-
-                if 'new_diagnoses' in metrics:
-                    bracs = strat_pars['brackets']
-                    
-                    # update the value for the current day, for each bracket. 
-                    for brac in bracs:
-                        brac_name = "_".join([ str(brac[0]), str(brac[1])])
-
-                        # Count the number of individuals meeting the criteria. 
-                        if strat == 'age':
-                            num_inds = np.sum( (self.age[inds] >= brac[0]) & (self.age[inds] < brac[1]) )
-                        elif strat == 'income':
-                            num_inds = np.sum( (self.income[inds] >= brac[0]) & (self.income[inds] < brac[1]) )
-                        else:
-                            raise ValueError(f"Stratification {strat} not recognized.")
-
-                        self.stratifications[strat][brac_name]['new_diagnoses'][self.t] += num_inds
-
-        #### WEIRD DEFAULT COVASIM CODE
-        # Handle people who were actually diagnosed today (i.e., set them as diagnosed and remove any of them that were quarantining from quarantine)
-        diag_inds  = self.check_inds(self.diagnosed, self.date_diagnosed, filter_inds=None) # Find who are not diagnosed and have a date of diagnosis that is today or earlier
-        self.diagnosed[diag_inds]   = True # Set these people to be diagnosed
-        self.p_diagnosed[pathogen,diag_inds]   = True # Set these people to be diagnosed
-        quarantined = cvu.itruei(self.quarantined, diag_inds) # Find individuals who were just diagnosed who are in quarantine
-        self.date_end_quarantine[quarantined] = self.t # Set end quarantine date to match when the person left quarantine (and entered isolation)
-        self.quarantined[diag_inds] = False # If you are diagnosed, you are isolated, not in quarantine
-
-        return len(test_pos_inds)
-
+     
     def check_diagnosed(self, pathogen = 0):
         '''
         Check for new diagnoses. Since most data are reported with diagnoses on
@@ -827,6 +724,19 @@ class People(cvb.BasePeople):
             # TODO: exposed_variant ok? 
             var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
             self.flows_variant[pathogen]['new_diagnoses_by_variant'][variant] += var_count
+
+
+        
+        if self.pars['enable_multiregion']:
+            #### REGIONAL RESULTS
+            rnames = self.pars['multiregion']['rnames']
+            rsizes = self.pars['multiregion']['rsizes']
+            rstarts = self.pars['multiregion']['rstarts']
+
+            for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
+                # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
+                num_inds = np.sum((test_pos_inds >= rstart) & (test_pos_inds < rstart+rsize))
+                self.flows[pathogen][f'{rname}_new_diagnoses'] += num_inds
 
         # STRATIFICATIONS
         inds = test_pos_inds
@@ -1007,7 +917,7 @@ class People(cvb.BasePeople):
         Returns:
             count (int): number of people infected
         '''
-        if len(inds) == 0:
+        if len(inds) == 0:  
             return 0
 
         # Remove duplicates

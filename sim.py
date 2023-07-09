@@ -1,5 +1,5 @@
 '''
-Defines the Sim class, Covasim's core class.
+Defines the Sim class, PathoSim's core class.
 '''
 
 #%% Imports
@@ -79,13 +79,7 @@ class Sim(cvb.BaseSim):
         self._legacy_trans = None     # Whether to use the legacy transmission calculation method (slower; for reproducing earlier results)
         self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
         self.initialized_pathogens = False
-        self.TestScheduler = None
-        
-
-        #todo remove this later on
-        if 'sp_people' in kwargs:
-            print("sp_people is no longer a parameter, instead, SET people = BehaviourModel, NOT people = BehaviourModel.popdict")
-            raise ArgumentError
+        self.TestScheduler = None 
 
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
@@ -105,6 +99,8 @@ class Sim(cvb.BaseSim):
         self.update_pars(pars, **kwargs) # Update the parameters, if provided
         self.load_data(datafile) # Load the data, if provided
         
+        if not isinstance(self.pars['pathogens'], list):
+            self.pars['pathogens'] = [self.pars['pathogens']]
         self.pathogens = self.pars['pathogens']
          
 
@@ -114,13 +110,15 @@ class Sim(cvb.BaseSim):
             self.rsizes = None
             self.rstarts = None
             self.process_multireg_pars()
-            print("Multiregion is enabled!")
+            if self.pars['verbose'] != 0:
+                print("Multiregion is enabled!")
 
 
         # Process test object pars
         if self.pars['enable_testobjs']: 
             self.process_testobj_pars()
-            print("COVID-19 testing is enabled!")
+            if self.pars['verbose'] != 0:
+                print("COVID-19 testing is enabled!")
 
        
         return
@@ -506,7 +504,10 @@ class Sim(cvb.BaseSim):
             self.people = cvpop.make_people(self, popdict = self.popdict, reset=reset, verbose=verbose, **kwargs)  
 
         else: #input is BehaviourModel
-            self.people = cvpop.make_people(self, popdict = self.popdict.popdict, workplaces = self.popdict.workplaces, n_workplaces = self.popdict.n_workplaces,reset=reset, verbose=verbose, **kwargs) 
+            if self.pars['enable_multiregion']:
+                self.people = cvpop.make_people(self, popdict = self.popdict.total_popdict, workplaces = self.popdict.workplaces, n_workplaces = self.popdict.n_workplaces,reset=reset, verbose=verbose, **kwargs)
+            else:
+                self.people = cvpop.make_people(self, popdict = self.popdict.popdict, workplaces = self.popdict.workplaces, n_workplaces = self.popdict.n_workplaces,reset=reset, verbose=verbose, **kwargs)
 
 
         self.people.initialize(sim_pars=self.pars) # Fully initialize the people
@@ -636,40 +637,43 @@ class Sim(cvb.BaseSim):
 
         # If we're using multiregion but don't specify particular distribution of infection amount regions, 
         # init as normal. (Uniformly)
-        if self.pars['enable_multiregion']:
-            default_mr_seed_infections = 'region_seed_infections' not in self.pars['multiregion']
-        else:
-            default_mr_seed_infections = False
-
-        if not self.pars['enable_multiregion'] or default_mr_seed_infections:
+      
+        if not self.pars['enable_multiregion']:
             self.init_infections_simple(force, verbose)
             return
         
         # If anyone is non-naive, don't re-initialize
         if self.people.count_not('naive') == 0 or force: # Everyone is naive
 
+
             # Handle anyone who isn't susceptible. Currently not per-region. 
             if self['frac_susceptible'] < 1:
                 inds = cvu.choose(self['pop_size'], np.round((1-self['frac_susceptible'])*self['pop_size']))
                 self.people.make_nonnaive(inds=inds)
-
-            # Infect, based on parameters.
-            regs2inf = self.pars['multiregion']['region_seed_infections']
-
-            if (not isinstance(regs2inf[0], list)):
-                print("Multi-pathogen simulation with multi-region enabled requires region_seed_infections to contain arrays of length: number of pathogens in the simulation ") #TODO change that to be in the pathogen class
                  
-            i_reg = 0
-            for reg in regs2inf:
-                for i in range(len(reg)):
-                    # Create the seed infections
-                    reg_start = self.rstarts[i_reg]
-                    reg_size = self.rsizes[i_reg]
-                    # Choose, without replacement, the appropriate # people. Then, offset to get their actual UIDs. 
-                    inds = cvu.choose(reg_size, regs2inf[reg, i]) + reg_start
+            for i in range(len(self.pathogens)):
+                if not isinstance(self.pathogens[i].pop_infected, dict):
+                    print("Multi-pathogen simulation with multi-region enabled requires an dict of size <<number of regions>> as input for pathogen.pop_infected, where the keys are the region names, the values are the number of initial infected")
+                    continue
+                index =0
+                for key_reg in self.pathogens[i].pop_infected.keys():
+                    ''' 
+                    index = -1
+                    for name in range(len(self.rnames)): 
+                        if str(self.rnames[name]) == str(key_reg):
+                            index == name
+                            break'''
+
+                    if index == -1:
+                        print(f"Region with name {key_reg} not found, make sure the keys in the pop_infected dictionary of pathogen {self.pathogens[i].label} match the region names")
+                        continue
+
+                    reg_start = self.rstarts[index]
+                    reg_size = self.rsizes[index] 
+                    inds = cvu.choose(reg_size, self.pathogens[i].pop_infected[self.rnames[index]]) + reg_start 
                     self.people.infect(inds=inds, layer='seed_infection', pathogen_index = i) # Not counted by results 
-                i_reg += 1
-        
+                    index +=1
+             
         return
 
     def init_infections_simple(self, force=False, verbose=None):
@@ -732,8 +736,8 @@ class Sim(cvb.BaseSim):
 
         t = self.t 
         # If it's the first timestep, infect people
-        if t == 0:
-            self.init_infections(verbose=False)
+        #if t == 0:
+            #self.init_infections(verbose=False)
             
         # Perform initial operations
         #self.rescale() # Check if we need to rescale
@@ -946,19 +950,22 @@ class Sim(cvb.BaseSim):
             self.complete = True
         return
 
-    def update_results_mr(self, people, pathogen = 0):
+    def update_results_mr(self, people, pathogen = 0): #ADD multi-region individual virus results
         t = self.t
         nv = self.pathogens[pathogen].n_variants
 
         for rname, rstart, rsize in zip(self.rnames, self.rstarts, self.rsizes):
             for key in cvd.result_stocks.keys():
-                self.results[pathogen][f'{rname}_n_{key}'][t] = people.r_count(key, rstart, rstart+rsize, pathogen)
+                if key not in ['known_dead', 'quarantined', 'vaccinated']:
+                    self.results[pathogen][f'{rname}_n_{key}'][t] = people.r_count2d(f'p_{key}', rstart, rstart+rsize, pathogen)
+                else:
+                    self.results[pathogen][f'{rname}_n_{key}'][t] = people.r_count1d(key, rstart, rstart+rsize)
+
 
             for key in cvd.result_stocks_by_variant.keys():
                 for variant in range(nv):
                     self.results[pathogen]['variant'][f'n_{key}'][variant, t] = people.r_count_by_variant(f'p_{key}', variant, rstart, rstart+rsize, pathogen)
-            # TODO: Update the flows. 
-
+            
 
     def process_behaviour_pars(self, default_behaviour_pars, passed_behaviour_pars):
         options = ['symptom_quar_pars', 'contact_quar_pars', 'hh_symp_quar_pars', 'enable_symp_early_end', 'enable_hh_symp_exemption', 'enable_contact_exemption', 'smartwatch_behaviour']
@@ -1178,8 +1185,13 @@ class Sim(cvb.BaseSim):
             for key in cvd.result_flows_by_variant.keys():
                 for variant in range(self.pathogens[p].n_variants):
                     self.results[p]['variant'][f'cum_{key}'][variant, :] = np.cumsum(self.results[p]['variant'][f'new_{key}'][variant, :], axis=0)
-            for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
-                res.values += self.pathogens[p].pop_infected*self.rescale_vec[0]
+            if self.pars['enable_multiregion']:
+                for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
+                    for val in self.pathogens[p].pop_infected.values():
+                        res.values += val*self.rescale_vec[0]
+            else:
+                for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
+                    res.values += self.pathogens[p].pop_infected*self.rescale_vec[0]
 
         # Finalize interventions and analyzers
         self.finalize_interventions()

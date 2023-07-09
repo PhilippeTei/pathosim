@@ -1137,8 +1137,8 @@ class BasePeople(FlexPretty):
 
     def r_count2d(self, key, i_start, i_end, pathogen):
         ''' Count the number of people for a given key in the half-open
-        interval [i_start, i_end), for the given range of people id's. '''
-        return np.count_nonzero(self[key][pathogen, i_start:i_end])
+        interval [i_start, i_end), for the given range of people id's. ''' 
+        return np.count_nonzero(self[key][pathogen,i_start:i_end])
     
     def r_count1d(self, key, i_start, i_end):
         ''' Count the number of people for a given key in the half-open

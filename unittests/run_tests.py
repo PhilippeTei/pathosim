@@ -7,6 +7,7 @@ import test_covSimInterventions as t5
 import test_covVariantsSim as t6
 import test_mergeStates as t7
 import test_multi_pathogen as t8
+import test_multi_region as t9
 
 #To run ALL unittests:
 #python run_tests.py
@@ -51,6 +52,9 @@ def all_tests():
 
     #test multi-pathogen simulations 
     suite.addTest(t8.test_multi_pathogen_sim("test_multi_cov"))
+     
+    #test multi-region module 
+    suite.addTest(t9.test_multi_region("test_multi_reg"))
      
      
     return suite

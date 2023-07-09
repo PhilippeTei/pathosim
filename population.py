@@ -55,13 +55,12 @@ def make_people(sim, popdict=None, workplaces = None, n_workplaces = None, reset
             n_workplaces = popdict.n_workplaces; 
     
         elif sim.popfile is None: 
-            popdict = parse_bhPopdict_to_ifPopdict(popdict)
+            popdict = parse_bhPopdict_to_ifPopdict(popdict, sim)
      
     else:   
         popdict = make_randpop(sim, **kwargs)  #create random population if no population input
             
-
-    # Do minimal validation and create the people
+     
     validate_popdict(popdict, sim.pars, verbose=verbose)
      
     if sim.pars['enable_smartwatches']:
@@ -298,12 +297,27 @@ def make_microstructured_contacts(pop_size, cluster_size, mapping=None):
     return output
 
  
-def parse_bhPopdict_to_ifPopdict(bhPopdict):
+def parse_bhPopdict_to_ifPopdict(bhPopdict, sim):
      
     '''
     Converts behaviour popdict into infection popdict
     Arguments: behaviour popdict (pop.popdict)
     '''
+    if sim.pars['enable_multiregion']:
+        try:
+            import behaviour as bh # Optional import
+        except ModuleNotFoundError as E: # pragma: no cover
+            errormsg = 'Please install the behaviour module first' # Also caught in make_people()
+            raise ModuleNotFoundError(errormsg) from E
+        layer_mapping = None
+        # Handle layer mapping
+        default_layer_mapping = {'H':'h', 'S':'s', 'W':'w', 'C':'c', 'LTCF':'l'} # Remap keys from old names to new names
+        layer_mapping = sc.mergedicts(default_layer_mapping, layer_mapping)
+        people = bh.people.make_people(popdict=bhPopdict, pop_type='behaviour_module') # Note: veeery slow. Just a parsing function; contacts and stuff already made. 
+         
+        people.contacts = cvb.Contacts(**people.contacts)
+        people['layer_keys'] = list(layer_mapping.values())
+        return people
 
     bhPopdict = sc.dcp(bhPopdict)
 
