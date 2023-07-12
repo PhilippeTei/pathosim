@@ -19,7 +19,7 @@ from . import plotting as cvplt
 from . import immunity as cvi
 from . import watches as cvw
 from . import pathogens as pat
-
+from . import stratify as strat
 __all__ = ['People']
 
 class People(cvb.BasePeople):
@@ -74,8 +74,8 @@ class People(cvb.BasePeople):
         self.contacts = None
         self.init_contacts() # Initialize the contacts
         self.infection_log = [] # Record of infections - keys for ['source','target','date','layer']
-        self.stratifications = None # Gets updated in sim.py : initialize() 
-        
+        self.sim = None
+
         variantNums = []
         for p in self.pars['pathogens']:
             variantNums.append(len(p.variants)+1)
@@ -163,7 +163,8 @@ class People(cvb.BasePeople):
      
         self._dtypes = {key: self[key].dtype for key in self.keys()} # Assign all to float by default 
 
-        # Store flows to be computed during simulation
+        # Store flows
+        #  to be computed during simulation
         self.init_flows()
 
         # Although we have called init(), we still need to call initialize()
@@ -235,14 +236,14 @@ class People(cvb.BasePeople):
                         self.flows[p][f'{region}_{target}'] = 0
         return
 
-    def initialize(self, sim_pars=None):
+    def initialize(self, sim_pars=None, sim = None):
         ''' Perform initializations '''
         self.validate(sim_pars=sim_pars) # First, check that essential-to-match parameters match
         self.set_pars(sim_pars) # Replace the saved parameters with this simulation's
 
         for i in range(sim_pars['n_pathogens']):
             self.set_prognoses(i)
-
+        self.sim = sim
         self.initialized = True
         return
 
@@ -286,11 +287,11 @@ class People(cvb.BasePeople):
         watch_owners = self.true('has_watch') # list of inds of people with watches
         bool_mask_alerted = self.alerted[watch_owners]
         bool_mask_exposed = self.exposed[watch_owners]
-
-        tp = np.sum(np.logical_and(bool_mask_alerted, bool_mask_exposed))
-        fn = np.sum(np.logical_and(np.logical_not(bool_mask_alerted), bool_mask_exposed))
-        tn = np.sum(np.logical_and(np.logical_not(bool_mask_alerted), np.logical_not(bool_mask_exposed)))
-        fp = np.sum(np.logical_and(bool_mask_alerted, np.logical_not(bool_mask_exposed)))
+        
+        tp = np.sum(strat.get_indices_to_track(self.sim,np.logical_and(bool_mask_alerted, bool_mask_exposed)))
+        fn = np.sum(strat.get_indices_to_track(self.sim,np.logical_and(np.logical_not(bool_mask_alerted), bool_mask_exposed)))
+        tn = np.sum(strat.get_indices_to_track(self.sim,np.logical_and(np.logical_not(bool_mask_alerted), np.logical_not(bool_mask_exposed))))
+        fp = np.sum(strat.get_indices_to_track(self.sim,np.logical_and(bool_mask_alerted, np.logical_not(bool_mask_exposed))))
 
         # print("DEBUG: SMARTWATCH ALERT PROBS 2")
         # days = np.arange(-21, 22, 1)
@@ -360,9 +361,9 @@ class People(cvb.BasePeople):
 
     def check_sw_quarantined(self):
         sw_quarantined_arr = np.logical_and(self.quarantined, self.has_watch)
-        sw_quarantined_count = np.sum(sw_quarantined_arr)
+        sw_quarantined_count = np.sum(strat.get_indices_to_track(self.sim, sw_quarantined_arr))
         sw_correctly_quarantined_arr = np.logical_and(sw_quarantined_arr, self.exposed)
-        sw_i_quarantined_count = sw_quarantined_count - np.sum(sw_correctly_quarantined_arr)
+        sw_i_quarantined_count = sw_quarantined_count - np.sum(strat.get_indices_to_track(self.sim, sw_correctly_quarantined_arr))
 
         return sw_quarantined_count, sw_i_quarantined_count
 
@@ -489,47 +490,24 @@ class People(cvb.BasePeople):
         has_date = cvu.idefinedi(date, not_current)
         inds     = cvu.itrue(self.t >= date[has_date], has_date)
         return inds
-
-    #!!after all these checks, update person overall state, remove updating of person overall state here
+     
     #region
     def check_infectious(self, pathogen = 0):
         ''' Check if they become infectious with the pathogen index passed'''
         inds = self.check_inds(self.p_infectious[pathogen], self.date_p_infectious[pathogen], filter_inds=self.is_exp[pathogen])
         self.p_infectious[pathogen, inds] = True 
         self.p_infectious_variant[pathogen, inds] = self.p_exposed_variant[pathogen,inds]
-
-        if self.pars['enable_stratifications']:
-            for strat, strat_pars in self.pars['stratification_pars'].items():
-                metrics = strat_pars['metrics']
-
-                if 'new_infectious' in metrics:
-                    bracs = strat_pars['brackets']
-                    
-                    # update the value for the current day, for each bracket. 
-                    for brac in bracs:
-                        brac_name = "_".join([ str(brac[0]), str(brac[1])])
-
-                        # Count the number of individuals meeting the criteria. 
-                        if strat == 'age':
-                            num_inds = np.sum( (self.age[inds] >= brac[0]) & (self.age[inds] < brac[1]) )
-                        elif strat == 'income':
-                            num_inds = np.sum( (self.income[inds] >= brac[0]) & (self.income[inds] < brac[1]) )
-                        else:
-                            raise ValueError(f"Stratification {strat} not recognized.")
-
-                        self.stratifications[strat][brac_name]['new_infectious'][self.t] += num_inds
-
-        #TODO change n_variants to be an array of values for each pathogen
-        # for variant in range(self.pars['n_variants'][pathogen]):
+        
+        
 
         for variant in range(self.pars['pathogens'][pathogen].n_variants):
             this_variant_inds = cvu.itrue(self.p_infectious_variant[pathogen, inds] == variant, inds)
-            n_this_variant_inds = len(this_variant_inds)
+            n_this_variant_inds = len(strat.get_indices_to_track(self.sim, this_variant_inds))
             self.flows_variant[pathogen]['new_infectious_by_variant'][variant] += n_this_variant_inds
 
             #TODO change that array and update this 
             self.p_infectious_by_variant[pathogen,variant, this_variant_inds] = True 
-        return len(inds)
+        return len(strat.get_indices_to_track(self.sim, inds))
 
 
     def check_symptomatic(self, pathogen = 0):
@@ -537,34 +515,14 @@ class People(cvb.BasePeople):
         inds = self.check_inds(self.p_symptomatic[pathogen], self.date_p_symptomatic[pathogen], filter_inds=self.is_exp[pathogen])
         
         self.p_symptomatic[pathogen, inds] = True
-        return len(inds)
+        return len(strat.get_indices_to_track(self.sim, inds))
 
  
     def check_severe(self, pathogen = 0):
         ''' Check for new progressions to severe '''
         inds = self.check_inds(self.p_severe[pathogen], self.date_p_severe[pathogen], filter_inds=self.is_exp[pathogen])
-        
-        #  STRATIFICATION
-        if self.pars['enable_stratifications']:
-            for strat, strat_pars in self.pars['stratification_pars'].items():
-                metrics = strat_pars['metrics']
 
-                if 'new_severe' in metrics:
-                    bracs = strat_pars['brackets']
-                    
-                    # update the value for the current day, for each bracket. 
-                    for brac in bracs:
-                        brac_name = "_".join([ str(brac[0]), str(brac[1])])
-
-                        # Count the number of individuals meeting the criteria. 
-                        if strat == 'age':
-                            num_inds = np.sum( (self.age[inds] >= brac[0]) & (self.age[inds] < brac[1]) )
-                        elif strat == 'income':
-                            num_inds = np.sum( (self.income[inds] >= brac[0]) & (self.income[inds] < brac[1]) )
-                        else:
-                            raise ValueError(f"Stratification {strat} not recognized.")
-
-                        self.stratifications[strat][brac_name]['new_severe'][self.t] += num_inds
+        strat_inds = strat.get_indices_to_track(self.sim, inds)
 
         if self.pars['enable_multiregion']:
             rnames = self.pars['multiregion']['rnames']
@@ -573,19 +531,19 @@ class People(cvb.BasePeople):
 
             for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
                 # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
-                num_inds = np.sum((inds >= rstart) & (inds < rstart+rsize))
+                num_inds = np.sum((strat_inds >= rstart) & (strat_inds < rstart+rsize))
                 self.flows[pathogen][f'{rname}_new_severe'] += num_inds
             
 
         self.p_severe[pathogen, inds] = True
-        return len(inds)
+        return len(strat_inds)
 
 
     def check_critical(self,pathogen = 0):
         ''' Check for new progressions to critical '''
         inds = self.check_inds(self.p_critical[pathogen], self.date_p_critical[pathogen], filter_inds=self.is_exp[pathogen])
         self.p_critical[pathogen,inds] = True
-        return len(inds)
+        return len(strat.get_indices_to_track(self.sim, inds))
 
 
     def check_recovery(self, pathogen = 0, inds=None, filter_inds='is_exp'):
@@ -628,35 +586,14 @@ class People(cvb.BasePeople):
         # fp_diagnoses = cvu.true((~self.exposed) & (self.diagnosed) & (self.t - self.date_diagnosed >= 14))
         # self.diagnosed[fp_diagnoses] = False
         
-        return len(inds)
+        return len(strat.get_indices_to_track(self.sim, inds))
 
 
     def check_death(self, pathogen= 0):
         ''' Check whether or not this person died on this timestep  '''
         inds = self.check_inds(self.p_dead[pathogen], self.date_p_dead[pathogen], filter_inds=self.is_exp[pathogen])
     
-        #  STRATIFICATION
-        if self.pars['enable_stratifications']:
-            for strat, strat_pars in self.pars['stratification_pars'].items():
-                metrics = strat_pars['metrics']
-
-                if 'new_deaths' in metrics:
-                    bracs = strat_pars['brackets']
-                    
-                    # update the value for the current day, for each bracket. 
-                    for brac in bracs:
-                        brac_name = "_".join([ str(brac[0]), str(brac[1])])
-
-                        # Count the number of individuals meeting the criteria. 
-                        if strat == 'age':
-                            num_inds = np.sum( (self.age[inds] >= brac[0]) & (self.age[inds] < brac[1]) )
-                        elif strat == 'income':
-                            num_inds = np.sum( (self.income[inds] >= brac[0]) & (self.income[inds] < brac[1]) )
-                        else:
-                            raise ValueError(f"Stratification {strat} not recognized.")
-
-                        self.stratifications[strat][brac_name]['new_deaths'][self.t] += num_inds        
-        
+      
         self.dead[inds]             = True
          
         diag_inds = inds[self.p_diagnosed[pathogen, inds]] # Check whether the person was diagnosed before dying
@@ -686,7 +623,7 @@ class People(cvb.BasePeople):
             self.p_exposed_variant[i,inds]    = np.nan
             self.p_recovered_variant[i,inds]  = np.nan 
 
-        return len(inds), len(diag_inds)
+        return len(strat.get_indices_to_track(self.sim, inds)), len(strat.get_indices_to_track(self.sim, diag_inds))
 
 
     def check_alerted(self):
@@ -696,7 +633,7 @@ class People(cvb.BasePeople):
         '''
 
         # Check who was alerted
-        n_alerted = len(cvu.true(self.alerted))
+        n_alerted =  len(strat.get_indices_to_track(self.sim, cvu.true(self.alerted)))
         #TODO potentially save for which pathogen the person is alerted to ?
 
         # Set the alerted status of everyone to false
@@ -717,12 +654,13 @@ class People(cvb.BasePeople):
         # Handle people who tested today who will be diagnosed in future (i.e., configure them to have have finished being tested)
         test_pos_inds = self.check_inds(self.p_diagnosed[pathogen], self.date_pos_test, filter_inds=None) # Find people who are not diagnosed and have a date of a positive test that is today or earlier
         self.date_pos_test[test_pos_inds] = np.nan # Clear date of having will-be-positive test
-
+        
+        test_pos_inds_strat = strat.get_indices_to_track(self.sim, test_pos_inds)
         # Update per variant. (Written 31-05-23)
         for variant in range(self.pars['pathogens'][pathogen].n_variants):
             # Get the people who are exposed for this variant, and have a positive test. 
             # TODO: exposed_variant ok? 
-            var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds])
+            var_count = np.sum(self.p_exposed_by_variant[pathogen, variant, test_pos_inds_strat])
             self.flows_variant[pathogen]['new_diagnoses_by_variant'][variant] += var_count
 
 
@@ -733,34 +671,12 @@ class People(cvb.BasePeople):
             rsizes = self.pars['multiregion']['rsizes']
             rstarts = self.pars['multiregion']['rstarts']
 
-            for rname, rstart, rsize in zip(rnames, rstarts, rsizes):
+            for rname, rstart, rsize in zip(rnames, rstarts, rsizes): 
                 # Count the # indicies in the region. i.e. indicies greater than rstart and less than the end .
-                num_inds = np.sum((test_pos_inds >= rstart) & (test_pos_inds < rstart+rsize))
+                num_inds = np.sum((test_pos_inds_strat >= rstart) & (test_pos_inds_strat < rstart+rsize))
                 self.flows[pathogen][f'{rname}_new_diagnoses'] += num_inds
-
-        # STRATIFICATIONS
-        inds = test_pos_inds
-        if self.pars['enable_stratifications']:
-            for strat, strat_pars in self.pars['stratification_pars'].items():
-                metrics = strat_pars['metrics']
-
-                if 'new_diagnoses' in metrics:
-                    bracs = strat_pars['brackets']
-                    
-                    # update the value for the current day, for each bracket. 
-                    for brac in bracs:
-                        brac_name = "_".join([ str(brac[0]), str(brac[1])])
-
-                        # Count the number of individuals meeting the criteria. 
-                        if strat == 'age':
-                            num_inds = np.sum( (self.age[inds] >= brac[0]) & (self.age[inds] < brac[1]) )
-                        elif strat == 'income':
-                            num_inds = np.sum( (self.income[inds] >= brac[0]) & (self.income[inds] < brac[1]) )
-                        else:
-                            raise ValueError(f"Stratification {strat} not recognized.")
-
-                        self.stratifications[strat][brac_name]['new_diagnoses'][self.t] += num_inds
-
+                
+       
         # Handle people who were actually diagnosed today (i.e., set them as diagnosed and remove any of them that were quarantining from quarantine)
         diag_inds  = self.check_inds(self.diagnosed, self.date_diagnosed, filter_inds=None) # Find who are not diagnosed and have a date of diagnosis that is today or earlier
         self.diagnosed[diag_inds]   = True # Set these people to be diagnosed
@@ -769,7 +685,7 @@ class People(cvb.BasePeople):
         self.date_end_quarantine[quarantined] = self.t # Set end quarantine date to match when the person left quarantine (and entered isolation)
         self.quarantined[diag_inds] = False # If you are diagnosed, you are isolated, not in quarantine
 
-        return len(test_pos_inds)
+        return len(test_pos_inds_strat)
 
 
     def check_quar(self):
@@ -783,7 +699,12 @@ class People(cvb.BasePeople):
                 self.quarantined[ind] = True
                 self.date_quarantined[ind] = self.t
                 self.date_end_quarantine[ind] = end_day
-                n_quarantined += 1
+
+                if self.sim.enable_stratifications:
+                    if ind in self.sim.stratification_indices:
+                        n_quarantined += 1
+                else: 
+                    n_quarantined += 1
 
         # If someone on quarantine has reached the end of their quarantine, release them
         end_inds = self.check_inds(~self.quarantined, self.date_end_quarantine, filter_inds=None) # Note the double-negative here (~)
@@ -971,9 +892,9 @@ class People(cvb.BasePeople):
         self.p_exposed_by_variant[pathogen_index,variant, inds] = True
          
         #TODO change that to multipathogen
-        self.flows[pathogen_index]['new_infections']   += len(inds)
-        self.flows[pathogen_index]['new_reinfections'] += len(cvu.defined(self.date_p_recovered[pathogen_index, inds])) # Record reinfections
-        self.flows_variant[pathogen_index]['new_infections_by_variant'][variant] += len(inds)
+        self.flows[pathogen_index]['new_infections']   += len(strat.get_indices_to_track(self.sim, inds))
+        self.flows[pathogen_index]['new_reinfections'] += len(strat.get_indices_to_track(self.sim, cvu.defined(self.date_p_recovered[pathogen_index, inds]))) # Record reinfections
+        self.flows_variant[pathogen_index]['new_infections_by_variant'][variant] += len(strat.get_indices_to_track(self.sim, inds))
         
         # Record transmissions
         for i, target in enumerate(inds):
@@ -1003,7 +924,7 @@ class People(cvb.BasePeople):
         is_symp = cvu.binomial_arr(symp_probs) # Determine if they develop symptoms
         symp_inds = inds[is_symp]
         asymp_inds = inds[~is_symp] # Asymptomatic
-        self.flows_variant[pathogen_index]['new_symptomatic_by_variant'][variant] += len(symp_inds)
+        self.flows_variant[pathogen_index]['new_symptomatic_by_variant'][variant] += len(strat.get_indices_to_track(self.sim, symp_inds))
 
         # CASE 1: Asymptomatic: may infect others, but have no symptoms and do not die
         dur_asym2rec = cvu.sample(**durpars['asym2rec'], size=len(asymp_inds))
@@ -1020,7 +941,7 @@ class People(cvb.BasePeople):
         is_sev = cvu.binomial_arr(sev_probs) # See if they're a severe or mild case
         sev_inds = symp_inds[is_sev]
         mild_inds = symp_inds[~is_sev] # Not severe
-        self.flows_variant[pathogen_index]['new_severe_by_variant'][variant] += len(sev_inds)
+        self.flows_variant[pathogen_index]['new_severe_by_variant'][variant] += len(strat.get_indices_to_track(self.sim, sev_inds))
 
         # CASE 2.1: Mild symptoms, no hospitalization required and no probability of death
         dur_mild2rec = cvu.sample(**durpars['mild2rec'], size=len(mild_inds))

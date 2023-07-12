@@ -36,19 +36,19 @@ class test_multi_region(unittest.TestCase):
 
         multi_reg_params = dict( 
             reg_params=pop.reg_pars # Passes various parameters for behaviour module to Covasim. 
-        )
+        ) 
 
-        pars = dict(
+        pars_mr = dict(
             pop_size=25000, 
             pop_type='behaviour_module',
             n_days = 200,
-            rand_seed = 0
+            rand_seed = 0,
+            multiregion=multi_reg_params,
+            enable_multiregion = True
         )
         cov = inf.SARS_COV_2(region_seed_infections)
-        pars_mr = pars 
-        pars_mr['multiregion'] = multi_reg_params
-        pars_mr['enable_multiregion'] = True
-        sim_mr = inf.Sim(pars=pars_mr, people=pop, pathogens = [cov], verbose = 0)
+           
+        sim_mr = inf.Sim(pars=pars_mr, people=pop, pathogens = cov, verbose = 0)
         sim_mr.run() 
  
         for key in keys_to_check:  

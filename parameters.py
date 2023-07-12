@@ -42,7 +42,7 @@ def make_pars(version=None, **kwargs):
 
     # Calculate stratified statistics
     pars['enable_stratifications'] = False
-    pars['stratification_pars'] = None
+    pars['stratification_pars'] = None 
 
     # Smartwatch par dictionaries
     pars['enable_smartwatches'] = False

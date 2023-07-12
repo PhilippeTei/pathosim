@@ -48,7 +48,7 @@ class test_diseaseMortalityTests_COVID(unittest.TestCase):
 
         dead_expected = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
         severe_expected = [0., 0., 0., 0., 0., 0., 1., 3., 4., 5., 7.]
-         
+            
         self.assertEqual(True if sim.results[0]['n_severe'] == severe_expected else False, True)
         self.assertEqual(True if sim.results[0]['n_dead'] == dead_expected else False, True) 
          

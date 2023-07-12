@@ -143,7 +143,7 @@ def handle_to_plot(kind, to_plot, n_cols, sim, check_ready=True):
         invalid = sc.autolist()
         for reskey in to_plot_list:
             if reskey in allkeys:
-                name = sim.results[reskey].name if reskey in reskeys else sim.results['variant'][reskey].name
+                name = sim.results[0][reskey].name if reskey in reskeys else sim.results[0]['variant'][reskey].name
                 to_plot[name] = [reskey] # Use the result name as the key and the reskey as the value
             else:
                 invalid += reskey
@@ -389,28 +389,31 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
             for resnum,reskey in enumerate(keylabels):
                 res_t = sim.results['date']
                 if reskey in variant_keys:
-                    res = sim.results[0]['variant'][reskey]
-                    ns = sim.pathogens[0].n_variants
-                    variant_colors = sc.gridcolors(ns)
-                    for variant in range(ns):
-                        # Colors and labels
-                        v_color = variant_colors[variant]
-                        v_label = 'wild type' if variant == 0 else sim['pathogens'][0].variants[variant-1].label
-                        color = set_line_options(colors, reskey, resnum, v_color)  # Choose the color
-                        label = set_line_options(labels, reskey, resnum, '')  # Choose the label
-                        if label: label += f' - {v_label}'
-                        else:     label = v_label
-                        # Plotting
-                        if res.low is not None and res.high is not None:
-                            ax.fill_between(res_t, res.low[variant,:], res.high[variant,:], color=color, **args.fill)  # Create the uncertainty bound
-                        ax.plot(res_t, res.values[variant,:], label=label, **args.plot, c=color)  # Actually plot the sim!
+                    for p in range(len(sim.pathogens)):
+                        res = sim.results[p]['variant'][reskey]
+                        ns = sim.pathogens[p].n_variants
+                        variant_colors = sc.gridcolors(ns)
+                        for variant in range(ns):
+                            # Colors and labels
+                            v_color = variant_colors[variant]
+                            p_label = sim['pathogens'][p].label
+                            v_label = (f'{p_label} wild type') if variant == 0 else sim['pathogens'][p].variants[variant-1].label
+                            color = set_line_options(colors, reskey, resnum, v_color)  # Choose the color
+                            label = set_line_options(labels, reskey, resnum, '')  # Choose the label
+                            if label: label += f' - {v_label}'
+                            else:     label = v_label
+                            # Plotting
+                            if res.low is not None and res.high is not None:
+                                ax.fill_between(res_t, res.low[variant,:], res.high[variant,:], color=color, **args.fill)  # Create the uncertainty bound
+                            ax.plot(res_t, res.values[variant,:], label=label, **args.plot, c=color)  # Actually plot the sim!
                 else:
-                    res = sim.results[0][reskey]
-                    color = set_line_options(colors, reskey, resnum, res.color)  # Choose the color
-                    label = set_line_options(labels, reskey, resnum, res.name)  # Choose the label
-                    if res.low is not None and res.high is not None:
-                        ax.fill_between(res_t, res.low, res.high, color=color, **args.fill)  # Create the uncertainty bound
-                    ax.plot(res_t, res.values, label=label, **args.plot, c=color)  # Actually plot the sim!
+                    for p in range(len(sim.pathogens)):
+                        res = sim.results[p][reskey]
+                        color = set_line_options(colors, reskey, resnum, res.color)  # Choose the color
+                        label = set_line_options(labels, reskey, resnum, res.name)  # Choose the label
+                        if res.low is not None and res.high is not None:
+                            ax.fill_between(res_t, res.low, res.high, color=color, **args.fill)  # Create the uncertainty bound
+                        ax.plot(res_t, res.values, label=label, **args.plot, c=color)  # Actually plot the sim!
                 if args.show['data']:
                     plot_data(sim, ax, reskey, args.scatter, color=color)  # Plot the data
                 if args.show['ticks']:
