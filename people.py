@@ -76,6 +76,8 @@ class People(cvb.BasePeople):
         self.infection_log = [] # Record of infections - keys for ['source','target','date','layer']
         self.stratifications = None # Gets updated in sim.py : initialize() 
         
+
+
         variantNums = []
         for p in self.pars['pathogens']:
             variantNums.append(len(p.variants)+1)
@@ -99,7 +101,9 @@ class People(cvb.BasePeople):
                 self[key] = np.zeros((self.pars['n_pathogens'],self.pars['pop_size']), dtype=cvd.default_float)
             else:
                 self[key] = np.full(self.pars['pop_size'], np.nan, dtype=cvd.default_float)
-
+        
+        self.provides_sample_prob = np.zeros(self.pars['pop_size'], dtype=cvd.default_float) #Keeps track of population sampling 
+        
         # Set health states -- only susceptible is true by default -- booleans except exposed by variant which should return the variant that ind is exposed to   
         for key in self.meta.states:
             val = (key in ['susceptible', 'naive']) # Default value is True for susceptible and naive, False otherwise

@@ -10,7 +10,7 @@ class active_population_sampling_program:
 
 
 class Sampler: 
-    def __init__(self, people, study_design_pars, sample_frame):
+    def __init__(self, people, study_design_pars, sample_frame, sample_frame_pars = None):
         #Initializes sampling group by assigning donations to everyone in the population based on design 
         self.people = people #sim.people object
         self.study_design_pars = study_design_pars
@@ -43,18 +43,67 @@ class Sampler:
         if sample_frame in sample_frame_mapping: #assign the construction parameters based on the sample frame
             self.sample_frame_pars = sample_frame_mapping[sample_frame]
 
-       #     for key, value in params.items():
-       #         setattr(self, key, value)
-
+        elif sample_frame_pars != None: 
+            self.sample_frame_pars = sample_frame_pars
+     
         else:
            raise ValueError("Invalid sample_frame value.") 
+        
+    def define_cohort(): 
+        pass
+        
+    def is_within_age_range(number, age_range):
+        lower_bound, upper_bound = age_range
+        return lower_bound <= number <= upper_bound
 
 
-    def assign_donation_probs(sample_frame_pars):
+    def assign_donation_probs(self, sample_frame_pars): #think about this with people
+        if self.study_design_pars['design_type'] == 'longitudinal':
+            #call define cohort function 
+            pass
+
+        elif self.study_design_pars['design_type'] == 'cross_sectional':
+            #find people in each age range of the sample frame 
+            for ID in range(self.people.pars['pop_size']):
+                #get associated age interval from the age of the agent
+                index = 0 #by default where to look for the associated prob
+                for i, interval in enumerate(self.sample_frame_pars['age_interval']): 
+                    if (is_within_age_range(self.people['age'][ID], interval)):
+                        index = i
+                        break
+                daily_prob_scaling = ((self.sample_frame_pars['donor_breakdown_per_interval'][index] * (self.sample_frame_pars['num_donors_per_day'] 
+                                                                                                        / self.people.pars['pop_size'])) / (self.people['age'][self.people['age'][ID]] 
+                                                                                                                                            / self.people.pars['pop_size']))
+                #fix sim pars part, also make sure that we can get all people of a certain age in this way, how do we get all people in a certain age range?
+                age_prob = daily_prob_scaling * (self.people['age'][ID]/self.people['age']) #all people of this age)
+                sex_prob = daily_prob_scaling * (self.people['sex'][ID]/self.people['sex']) #all people of this sex
+                if age_prob == 0 or sex_prob == 0:
+                    self.people['provides_sample_prob'][ID] = 0.0
+                else: 
+                    self.people['provides_sample_prob'][ID] = round(((age_prob + sex_prob)/2), 2) #should double check how rounding affects 
+
+
+               
+
+    #np.where(self.people['age'] == self.people['age'][ID])             
+
+                
+
+                
+
+
+
+
+
+                
+
+
+
+
         #Function to assign everyona a probability of donating on any given day
         #If some distribution has been passed in then use this or otherwise 
         #analogous to parameters.py in a serperate file that has predefined arrays or dictionary 
-        pass 
+         
 
     def apply(probability_list, num_samples=None):
         #Function that is called every day which returns a list of samples to move onto testing 
