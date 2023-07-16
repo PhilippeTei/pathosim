@@ -36,7 +36,7 @@ def set_stratified_indices(indices, constraint, sim):
                 'income': [('>=', 10000)]
             }
 
-            sim = pathosim.Sim(pars, enable_stratifications = True, stratification_pars = stratification_pars)
+            sim = pathosim.Sim(pars, enable_stratifications = True, stratification_pars = constraint)
 
     """  
    
@@ -57,8 +57,7 @@ def set_stratified_indices(indices, constraint, sim):
 
             for ind, i in enumerate(indices_with_cond): 
                 if i == True:
-                    if not (operators[operator_str](sim.people[attr][ind], value)):
-                        print('SDSDDSDDD')
+                    if not (operators[operator_str](sim.people[attr][ind], value)): 
                         raise Exception()
 
             if isinstance(indices_with_cond, np.ndarray):

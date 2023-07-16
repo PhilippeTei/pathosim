@@ -12,9 +12,13 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
     def __init__(self, pop_infected, label = "New_Pathogen"): 
         
         self.label = label
-        self.pop_infected = pop_infected# Number of initial infections
+        self.pop_infected = pop_infected #Number of initial infections
         self.variants = [] #variants excluding wild type 
+
+
         self.make_default_pathogen_pars()
+
+
         return
 
     def initialize(self, sim):
@@ -25,6 +29,8 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         self.update_runtime_pars(sim)
         self.make_variant_cross_immunity_matrix() 
         self.convert_prognoses()
+         
+
         return
 
 

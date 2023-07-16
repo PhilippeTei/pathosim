@@ -30,6 +30,7 @@ from . import people as cvppl
 from . import pathogens as pat
 from .settings import options as cvo
 from. import stratify as strat
+from. import pathogen_interactions as p_int
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -104,8 +105,9 @@ class Sim(cvb.BaseSim):
         if not isinstance(self.pars['pathogens'], list):
             self.pars['pathogens'] = [self.pars['pathogens']]
         self.pathogens = self.pars['pathogens']
-         
+        self.n_pathogens  = len(self.pathogens)
 
+  
         # Process mult-region pars
         if self.pars['enable_multiregion']:
             self.rnames = None
@@ -162,7 +164,8 @@ class Sim(cvb.BaseSim):
         self.t = 0  # The current time index
         self.validate_pars() # Ensure parameters have valid values
         self.set_seed() # Reset the random seed before the population is created
-        self.init_pathogens() 
+        self.init_pathogens() #Initialize pathogen information
+        self.init_pathogen_interactions() #Validate pathogen-pathogen matrices
         self.init_immunity() # initialize information about immunity (if use_waning=True)
         self.init_results() # After initializing the variant, create the results structure
 
@@ -359,13 +362,35 @@ class Sim(cvb.BaseSim):
         self['n_pathogens'] = self.pars['n_pathogens']
 
         assert self.pars['n_pathogens'] >=1, f"No pathogens are given to the simulation!"
-         
+          
+
         #Initialize the variants 
         for i in range(len(self.pathogens)): 
             self.pathogens[i].initialize(self)
-          
+             
         self.initialized_pathogens = True
          
+
+    def init_pathogen_interactions(self):
+ 
+        #Matrices of pathogen-pathogen interaction
+        for key in ['Mtrans', 'Miimm', 'Mcimm', 'Mdur', 'Msev']:
+            if self.pars[key] is None:
+                if key in ['Mcimm']:
+                    self[key] = np.matrix(np.zeros((self.n_pathogens, self.n_pathogens),dtype = int))
+                else:
+                    self[key] = np.matrix(np.ones((self.n_pathogens, self.n_pathogens),dtype = int))
+            else:
+                #validate  
+                assert len(self.pars[key]) == self.n_pathogens, f'Matrix {key} is not the right size (should be {self.n_pathogens}X{self.n_pathogens})'
+                for i in range(len(self.pars[key])):
+                    assert len(self.pars[key][i]) == self.n_pathogens, f'Matrix {key} is not the right size (should be {self.n_pathogens}X{self.n_pathogens})'
+
+                self[key] = np.matrix(self.pars[key])
+                 
+        
+
+
 
     def init_results(self):
         '''
@@ -877,6 +902,9 @@ class Sim(cvb.BaseSim):
                     beta_layer  = cvd.default_float(self['beta_layer'][lkey]) # A scalar; beta for the layer. Ex: 1.0. 
                     rel_trans, rel_sus = cvu.compute_trans_sus(prel_trans, prel_sus, inf_variant, sus, beta_layer, viral_load[current_pathogen], symp, diag, quar, asymp_factor, iso_factor, quar_factor, sus_imm)
                      
+                    rel_trans = p_int.mod_rel_trans(current_pathogen, people.p_exposed, self.n_pathogens, rel_trans, self['Mtrans'])
+                    rel_sus = p_int.mod_rel_sus(current_pathogen, rel_sus, people.p_exposed, self['Miimm'], self['Mcimm'], people.sus_imm, self.n_pathogens, self.pars['pop_size'])
+
                     # Calculate actual transmission
                     pairs = [[p1,p2]] if not self._legacy_trans else [[p1,p2], [p2,p1]] # Support slower legacy method of calculation, but by default skip this loop
                     for p1,p2 in pairs:

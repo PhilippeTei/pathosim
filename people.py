@@ -841,6 +841,8 @@ class People(cvb.BasePeople):
         if len(inds) == 0:  
             return 0
 
+        #indices_co-infected = np.full((self.pars['pop_size'],self.sim.n_pathogens))
+
         # Remove duplicates
         inds, unique = np.unique(inds, return_index=True)
         if source is not None:

@@ -9,7 +9,9 @@ class test_multi_pathogen_sim(unittest.TestCase):
         """
         Check simulations with multiple COVID-19, different immunity systems, different combinations. No interaction or cross immunity enabled!!
         """
-        
+      
+       
+
         n_days = 100 
         pop_size = 10000
          
