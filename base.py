@@ -1375,6 +1375,8 @@ use sim.people.save(force=True). Otherwise, the correct approach is:
         else: # Only replace specified keys
             for key,layer in contacts.items():
                 self.contacts[key] = layer
+
+
         return
 
 

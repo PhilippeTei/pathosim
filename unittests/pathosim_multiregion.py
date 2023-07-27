@@ -11,13 +11,65 @@ from behaviour import BehaviourModel
 import sciris as sc
 import os
 
-absolute_path = os.path.dirname(__file__)
-relative_path = "baselines"
-full_path = os.path.join(absolute_path, relative_path)
-keys_to_check = ['n_infectious', 'n_dead', 'n_symptomatic'] 
-regs = ['A','B','C','D','E']
- 
-pop = sc.load(f'{full_path}/test_multi_reg_pop.pop')
+""" Parameters for Behaviour Module """
+## Specify demographic parameters. Given as a list. ##
+reg_sizes = [20000] * 5
+reg_names = ['A', 'B', 'C', 'D', 'E']
+reg_names = [f'Region {name}' for name in reg_names]
+
+reg_params = []
+for reg in reg_names:
+    cur_params = dict(
+        name=reg,
+        n=reg_sizes[reg_names.index(reg)],
+        com_contacts=10,
+        country_location='canada'
+    )
+    reg_params.append(cur_params)
+
+## Specify work mixing parameters. 20% leave, to other places uniformly. ##
+
+params_work_mixing = {}
+
+for reg in reg_names:
+    # People leave uniformly to other regions.
+    other_regions = [x for x in reg_names if x != reg]
+    dests = {}
+
+    for other_reg in other_regions:
+        dests[other_reg] = 1 / len(other_regions)
+    
+    # Ensure that dests sums to 1. 
+    dests[other_regions[-1]] = 1 - sum([dests[x] for x in other_regions[:-1]])
+
+    params_work_mixing[reg] = {"leaving": 0.2, "dests": dests}
+
+"""
+Aside: a simple hard-coded 3 region example looks like:
+
+dests_a = {'city_b':0.6, 'city_c':0.4}
+dests_b = {'city_a':0.9, 'city_c':0.1}
+dests_c = {'city_a':0.9, 'city_b': 0.1}
+
+params_work_mixing = dict(city_a = {"leaving":0.05, "dests":dests_a},
+                            city_b =    {"leaving":0.4, "dests":dests_b},
+                            city_c =  {"leaving":0.3, "dests":dests_c})
+
+"""
+
+## Specify community mixing parameters. 20% community-based contacts are 
+# with people from other communities, uniformly. ##
+with_others = 0.2
+
+params_com_mixing = (with_others/(len(reg_names)-1))*np.ones((len(reg_names), len(reg_names)))
+
+# Populate the diagonal with 1 - with_others.
+for i in range(params_com_mixing.shape[0]):
+    params_com_mixing[i][i] = 1-with_others
+
+# Create pop object
+pop = RegionalBehaviourModel(com_mixing=True, work_mixing=True, params_com_mixing=params_com_mixing, 
+                params_work_mixing=params_work_mixing, all_reg_params=reg_params)
 
 ## Specify demographic parameters. Given as a list. ## 
 region_seed_infections = dict(
@@ -29,7 +81,7 @@ multi_reg_params = dict(
 )
 
 pars = dict(
-    pop_size=25000, 
+    pop_size=100000, 
     pop_type='behaviour_module',
     n_days = 200,
     rand_seed = 0
@@ -38,42 +90,8 @@ cov = inf.SARS_COV_2(region_seed_infections)
 pars_mr = pars 
 pars_mr['multiregion'] = multi_reg_params
 pars_mr['enable_multiregion'] = True
-sim_mr = inf.Sim(pars=pars_mr, people=pop, pathogens = [cov], verbose = 0)
-sim_mr.run() 
+sim_mr = inf.Sim(pars=pars_mr, people=pop, pathogens = cov)
+sim_mr.run()  
+
+
  
-#check against baseline
-
-
-
-#gen baseline  
-keys_to_check = ['n_infectious', 'n_dead', 'n_symptomatic']
-
-for key in keys_to_check:  
-    index = 0
-    for reg_name in region_seed_infections.keys():
-        s = 0
-        for i in sim_mr.results[0][f'{reg_name}_{key}']: 
-            s += i  
-        sc.saveobj(f'{full_path}/test_multi_region_Region_{regs[index]}_{key}.baseline', s)   
-        index += 1 
-          
-for key in keys_to_check:    
-    sc.saveobj(f'{full_path}/test_multi_region_country_{key}.baseline', sim_mr.results[0][f'{key}'])  
- 
- 
-
-for key in keys_to_check:  
-    index = 0
-    for reg_name in region_seed_infections.keys():
-        s = 0
-        for i in sim_mr.results[0][f'{reg_name}_{key}']: 
-            s += i  
-        exp = sc.load(f'{full_path}/test_multi_region_Region_{regs[index]}_{key}.baseline')   
-        index += 1 
-        assert s == exp
-
-for key in keys_to_check:   
-    s = sim_mr.results[0][f'{key}']
-    exp = sc.loadobj(f'{full_path}/test_multi_region_country_{key}.baseline') 
-    assert np.array_equal(s, exp) == True
-

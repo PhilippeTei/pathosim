@@ -59,11 +59,15 @@ class test_multi_region(unittest.TestCase):
                     s += i  
                 exp = sc.load(f'{full_path}/test_multi_region_Region_{regs[index]}_{key}.baseline')   
                 index += 1 
+                 
+                if s != exp:
+                    print(exp, s)
                 assert s == exp
 
         for key in keys_to_check:   
             s = sim_mr.results[0][f'{key}']
             exp = sc.loadobj(f'{full_path}/test_multi_region_country_{key}.baseline') 
+             
             assert np.array_equal(s, exp) == True
                  
 

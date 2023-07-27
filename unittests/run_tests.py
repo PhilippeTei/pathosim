@@ -75,3 +75,4 @@ if __name__ == '__main__':
         t3.generate_baseline()
         t5.generate_baseline() 
         t6.generate_baseline()
+        t9.generate_baseline()

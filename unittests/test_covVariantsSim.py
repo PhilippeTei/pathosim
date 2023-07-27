@@ -34,6 +34,7 @@ class test_covVariantsSim(unittest.TestCase):
          
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_oneVariant_{k}.baseline')  
+           
             self.assertEqual(True if expected_result==sim.results[0][k] else False, True) 
     
     def test_multiVariants(self): 
@@ -50,6 +51,7 @@ class test_covVariantsSim(unittest.TestCase):
         
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_covVariantsSim_multiVariant_{k}.baseline')  
+            
             self.assertEqual(True if expected_result==sim.results[0][k] else False, True)
 
                  

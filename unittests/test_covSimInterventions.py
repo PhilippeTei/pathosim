@@ -80,6 +80,8 @@ class test_covSimWithInterventions(unittest.TestCase):
         sim.run()
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_vaccinateNumAndBoosters_{k}.baseline')  
+            if expected_result != sim.results[0][k]:
+                print(sum(expected_result), sum(sim.results[0][k]))
             self.assertEqual(True if expected_result==sim.results[0][k] else False, True)
 
     def test_changeBeta(self):
@@ -88,6 +90,9 @@ class test_covSimWithInterventions(unittest.TestCase):
         sim.run()
         for k in result_keys:
             expected_result = sc.loadobj(f'{full_path}/test_changeBeta_{k}.baseline')  
+            
+            if expected_result != sim.results[0][k]:
+                print(sum(expected_result), sum(sim.results[0][k]))
             self.assertEqual(True if expected_result==sim.results[0][k] else False, True)
     '''
     def test_contactTracing(self):
