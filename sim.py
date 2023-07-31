@@ -31,6 +31,8 @@ from . import pathogens as pat
 from .settings import options as cvo
 from. import stratify as strat
 from. import pathogen_interactions as p_int
+from scipy.stats import percentileofscore
+from datetime import datetime, timedelta
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -130,6 +132,28 @@ class Sim(cvb.BaseSim):
             self.stratification_indices = None
             self.stratification_pars = self.pars['stratification_pars']
        
+        #also ensures that if no start date is specified for both the test and simulation, the test will run from day 0
+        self.start_date = sc.date(self['start_day'])
+        self.contact_test_start_date = sc.date(self.pars['contact_test_start_date']) if self.pars['contact_test_start_date'] is not None else self.start_date
+        self.age_test_start_date = sc.date(self.pars['age_test_start_date']) if self.pars['age_test_start_date'] is not None else self.start_date
+        self.severity_test_start_date = sc.date(self.pars['severity_test_start_date']) if self.pars['severity_test_start_date'] is not None else self.start_date
+        self.random_test_start_date = sc.date(self.pars['random_test_start_date']) if self.pars['random_test_start_date'] is not None else self.start_date
+        
+        #also ensures that if no end date is specified for both the test and simulation, the test will run for the remainder of the entire simulation
+        self.end_date = sc.date(self['end_day'])
+        self.contact_test_end_date = sc.date(self.pars['contact_test_end_date'])
+        self.age_test_end_date = sc.date(self.pars['age_test_end_date'])
+        self.severity_test_end_date = sc.date(self.pars['severity_test_end_date'])
+        self.random_test_end_date = sc.date(self.pars['random_test_end_date'])
+
+        #detection parameters
+        self.surveillance_viral_threshold = self.pars['surveillance_viral_threshold']
+        self.surveillance_percentile_threshold = self.pars['surveillance_percentile_threshold']
+
+        # Initialization code for early detection here
+        self.first_detection_time = None
+        self.viral_loads = np.zeros(self['pop_size'])
+
         return
 
 
@@ -539,7 +563,11 @@ class Sim(cvb.BaseSim):
         if self.pars['enable_smartwatches']:
             self.people.init_watches(self.pars['smartwatch_pars'])
              
-         
+        #This is an array of how much contact each agent has had cumulatively at each time step
+        self.contact_parameters = np.zeros(self['pop_size']) 
+
+        #this is an array of the probability of each agent attending a clinic at each time step
+        self.clinic_probabilities = np.zeros(self['pop_size'])
 
         return self
 
@@ -739,6 +767,13 @@ class Sim(cvb.BaseSim):
                     self.people.make_naive(new_naive_inds) # Make people naive again
         return
 
+    def check_detection(self, viral_loads, percent_threshold, viral_load_threshold):
+        if len(self.viral_loads) == 0:
+            return False
+        count = sum(1 for load in self.viral_loads if load > viral_load_threshold)
+        percentage = count / len(viral_loads) * 100
+        return percentage >= percent_threshold
+
 
     def step(self):  
         '''
@@ -757,6 +792,9 @@ class Sim(cvb.BaseSim):
         #if t == 0:
             #self.init_infections(verbose=False)
             
+        #track the current day and date of the simulation
+        self.current_day = sc.date(self['start_day']) + timedelta(days=t)
+        
         # Perform initial operations
         #self.rescale() # Check if we need to rescale
         people = self.people # Shorten this for later use
@@ -860,7 +898,9 @@ class Sim(cvb.BaseSim):
         if self['enable_behaviour']:
             people.schedule_behaviour(self['behaviour_pars'])
             
-        
+        # Initialize the array to hold the sum of counts for all variants
+        p1p2pathogen_counts = np.zeros(self['pop_size'])
+
         for current_pathogen in range(len(self.pathogens)): 
             # Implement state changes relating to quarantine and isolation/diagnosis; compute associated statistics
             people.update_states_post(pathogen = current_pathogen)
@@ -889,6 +929,9 @@ class Sim(cvb.BaseSim):
 
                 beta = cvd.default_float(self.pathogens[current_pathogen].beta * rel_beta)
 
+                # Initialize the 'contact parameter' for each agent in the population as an array
+                p1p2var_counts = np.zeros(self['pop_size'])
+                
                 for lkey, layer in contacts.items():
                     p1 = layer['p1']
                     p2 = layer['p2']
@@ -910,7 +953,118 @@ class Sim(cvb.BaseSim):
                     for p1,p2 in pairs:
                         source_inds, target_inds = cvu.compute_infections(beta, p1, p2, betas, rel_trans, rel_sus, legacy=self._legacy_trans)  # Calculate transmission! 
                         people.infect(inds=target_inds, hosp_max=hosp_max, icu_max=icu_max, source=source_inds, layer=lkey, variant=variant, pathogen_index = current_pathogen)  # Actually infect people
-                                  
+
+                    #calculate the 'contact parameter' for each agent in the population as an array
+                    for i in range(len(p1)):
+                        p1p2var_counts[p1[i]] += 1
+                        p1p2var_counts[p2[i]] += 1
+
+                    # Add the counts for this variant to the total counts for all variants
+                    p1p2pathogen_counts += p1p2var_counts
+                    
+                p1p2pathogen_avg = p1p2pathogen_counts / nv
+                self.contact_parameters += np.round((p1p2pathogen_avg/2))
+                contact_percentiles = np.array([percentileofscore(self.contact_parameters, a, 'rank') for a in self.contact_parameters]) 
+                
+                #all of the below converts date strings to datetime objects so functions can be performed on them
+                current_date = sc.date(self.current_day)
+
+                #testing parameters for contact-based testing
+                if self.pars['enable_surveillance'] == True:
+                    
+                    if self.pars['enable_syndromic_testing'] == True:
+                        
+                        #this is the total number of hospital places available per time step
+                        hospital_capacity = self.pars['hospital_capacity_percent'] * self['pop_size']
+
+                        # Initialize the hospital probabilities to a small value
+                        self.hospital_probabilities = np.full(self['pop_size'], 0.01)
+
+                        # Increase the probabilities for those who are susceptible
+                        susceptible_indices = np.where(self.people.susceptible == True)
+                        self.hospital_probabilities[susceptible_indices] += 0.04
+
+                        # Increase the probabilities for those with mild symptoms
+                        symptomatic_indices = np.where(self.people.symptomatic == True)
+                        self.hospital_probabilities[symptomatic_indices] += 0.1
+
+                        # Increase the probabilities for those with severe symptoms
+                        severe_indices = np.where(self.people.severe == True)
+                        self.hospital_probabilities[severe_indices] += 0.45
+
+                        # Increase the probabilities for those with critical symptoms
+                        critical_indices = np.where(self.people.critical == True)
+                        self.hospital_probabilities[critical_indices] += 0.2
+
+                        # Set the probabilities to 0 for those who are dead
+                        dead_indices = np.where(self.people.dead == True)
+                        self.hospital_probabilities[dead_indices] = 0
+
+                        ## Perform a Bernoulli trial for each individual
+                        hospital_visits = np.random.binomial(1, self.hospital_probabilities)
+
+                        # Get indices of individuals who go to the hospital
+                        hospital_visit_inds = np.where(hospital_visits == 1)[0]
+
+                        #testing parameters for syndromic surveillance
+                        inds = hospital_visit_inds
+                        surveillance_test_size = round(len(inds)*self.pars['syndromic_test_percent'])
+                        if self.pars['surveillance_test_size'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
+                        elif self.pars['surveillance_test_percent'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
+                        selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        
+                    
+                    #testing parameters for contact-based testing
+                    elif self.pars['enable_contact_testing'] == True and self.t % self.pars['contact_test_frequency'] == 0 and self.contact_test_start_date <= current_date <= self.contact_test_end_date:
+                        inds = np.where((contact_percentiles >= self.pars['contact_percentile_lower']) & (contact_percentiles <= self.pars['contact_percentile_upper']))[0]
+                        surveillance_test_size = len(inds)
+                        if self.pars['surveillance_test_size'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
+                        elif self.pars['surveillance_test_percent'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
+                        selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        
+                    #testing parameters for age-based testing
+                    elif self.pars['enable_age_testing'] == True and self.t % self.pars['age_test_frequency'] == 0 and self.age_test_start_date <= current_date <= self.age_test_end_date:
+                        inds = np.where((people.age >= self.pars['surveillance_age_lower']) & (people.age <= self.pars['surveillance_age_upper']))[0]
+                        surveillance_test_size = len(inds)
+                        if self.pars['surveillance_test_size'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
+                        elif self.pars['surveillance_test_percent'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
+                        selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+
+                    #testing parameters for severity-based testing
+                    elif self.pars['enable_severity_testing'] == True and self.t % self.pars['severity_test_frequency'] == 0 and self.severity_test_start_date <= current_date <= self.severity_test_end_date:
+                        inds = np.where((people.severe == True) | (people.critical == True))[0] #TODO: symp_prob rather than severe
+                        surveillance_test_size = len(inds)
+                        if self.pars['surveillance_test_size'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
+                        elif self.pars['surveillance_test_percent'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
+                        selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+
+                    #testing parameters for random testing
+                    elif self.pars['enable_random_testing'] == True  and self.t % self.pars['random_test_frequency'] == 0 and self.random_test_start_date <= current_date <= self.random_test_end_date:
+                        inds = people.uid
+                        surveillance_test_size = len(inds)
+                        if self.pars['surveillance_test_size'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
+                        elif self.pars['surveillance_test_percent'] is not None:
+                            surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
+                        selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+
+                    #check detection
+                    if self.first_detection_time is None and self.check_detection(self.viral_loads, self.surveillance_percentile_threshold, self.surveillance_viral_threshold):                        
+                        self.first_detection_time = self.t
+
         ##### CALCULATE STATISTICS #####
         for current_pathogen in range(len(self.pathogens)):
 
@@ -1081,22 +1235,8 @@ class Sim(cvb.BaseSim):
             if len(self.pars['testing']) == 0: 
                 print("Warning: Test objects enabled but no test object parameters, or already-built test objects, were supplied")
 
-    def run(self, do_plot=False, until=None, restore_pars=True, reset_seed=True, verbose=None):
-        '''
-        Run the simulation.
-
-        Args:
-            do_plot (bool): whether to plot
-            until (int/str): day or date to run until
-            restore_pars (bool): whether to make a copy of the parameters before the run and restore it after, so runs are repeatable
-            reset_seed (bool): whether to reset the random number stream immediately before run
-            verbose (float): level of detail to print, e.g. -1 = one-line output, 0 = no output, 0.1 = print every 10th day, 1 = print every day
-
-        Returns:
-            A pointer to the sim object (with results modified in-place)
-        '''
-
-        # Initialization steps -- start the timer, initialize the sim and the seed, and check that the sim hasn't been run
+    def pre_run(self, until=None, verbose=None, reset_seed=True):
+                # Initialization steps -- start the timer, initialize the sim and the seed, and check that the sim hasn't been run
         T = sc.timer() 
         if not self.initialized:
             self.initialize()
@@ -1124,36 +1264,98 @@ class Sim(cvb.BaseSim):
         if errormsg:
             raise AlreadyRunError(errormsg)
          
+        return T, until, verbose
+    
+    def run(self, do_plot=False, until=None, restore_pars=True, reset_seed=True, verbose=None):
+        '''
+        Run the simulation.
+
+        Args:
+            do_plot (bool): whether to plot
+            until (int/str): day or date to run until
+            restore_pars (bool): whether to make a copy of the parameters before the run and restore it after, so runs are repeatable
+            reset_seed (bool): whether to reset the random number stream immediately before run
+            verbose (float): level of detail to print, e.g. -1 = one-line output, 0 = no output, 0.1 = print every 10th day, 1 = print every day
+
+        Returns:
+            A pointer to the sim object (with results modified in-place)
+        '''
+
+        T, until, verbose = self.pre_run(until, verbose, reset_seed)
+
         # Main simulation loop
         while self.t < until:
+            elapsed = self.run_step(T, verbose)
+           
 
-            # Check if we were asked to stop
-            elapsed = T.toc(output=True)
-            if self['timelimit'] and elapsed > self['timelimit']:
-                sc.printv(f"Time limit ({self['timelimit']} s) exceeded; call sim.finalize() to compute results if desired", 1, verbose)
-                return
-            elif self['stopping_func'] and self['stopping_func'](self):
-                sc.printv("Stopping function terminated the simulation; call sim.finalize() to compute results if desired", 1, verbose)
-                return
+        self.run_complete(elapsed, restore_pars, verbose)
 
-            # Print progress
-            if verbose:
-                simlabel = f'"{self.label}": ' if self.label else ''
-                string = f'  Running {simlabel}{self.datevec[self.t]} ({self.t:2.0f}/{self.pars["n_days"]}) ({elapsed:0.2f} s) '
-                if verbose >= 2:
-                    sc.heading(string)
-                elif verbose>0:
-                    if not (self.t % int(1.0/verbose)):
-                        sc.progressbar(self.t+1, self.npts, label=string, length=20, newline=True)
-                        
-            # Do the heavy lifting -- actually run the model! 
-            self.step()   
-            self.validate_people_states()
+        return self
 
-        # If simulation reached the end, finalize the results
+    def run_as_generator(self, do_plot=False, until=None, restore_pars=True, reset_seed=True, verbose=None):
+        '''
+        Run the simulation.
+
+        Args:
+            do_plot (bool): whether to plot
+            until (int/str): day or date to run until
+            restore_pars (bool): whether to make a copy of the parameters before the run and restore it after, so runs are repeatable
+            reset_seed (bool): whether to reset the random number stream immediately before run
+            verbose (float): level of detail to print, e.g. -1 = one-line output, 0 = no output, 0.1 = print every 10th day, 1 = print every day
+
+        Returns:
+            A pointer to the sim object (with results modified in-place)
+        '''
+
+        T, until, verbose = self.pre_run(until, verbose, reset_seed)
+
+        # Main simulation loop
+        while self.t < until:
+            elapsed = self.run_step(T, verbose)
+            yield elapsed
+
+        self.run_complete(elapsed, restore_pars, verbose)
+
+        return self
+    
+    def run_step(self, T, verbose):
+         # Check if we were asked to stop
+        elapsed = T.toc(output=True)
+        if self['timelimit'] and elapsed > self['timelimit']:
+            sc.printv(f"Time limit ({self['timelimit']} s) exceeded; call sim.finalize() to compute results if desired", 1, verbose)
+            return
+        elif self['stopping_func'] and self['stopping_func'](self):
+            sc.printv("Stopping function terminated the simulation; call sim.finalize() to compute results if desired", 1, verbose)
+            return
+
+        # Print progress
+        if verbose:
+            simlabel = f'"{self.label}": ' if self.label else ''
+            string = f'  Running {simlabel}{self.datevec[self.t]} ({self.t:2.0f}/{self.pars["n_days"]}) ({elapsed:0.2f} s) '
+            if verbose >= 2:
+                sc.heading(string)
+            elif verbose>0:
+                if not (self.t % int(1.0/verbose)):
+                    sc.progressbar(self.t+1, self.npts, label=string, length=20, newline=True)
+                    
+        # Do the heavy lifting -- actually run the model! 
+        self.step()   
+        self.validate_people_states()
+
+        return elapsed
+
+    def run_complete(self, elapsed, restore_pars=True, verbose=None):
+            # If simulation reached the end, finalize the results
         if self.complete:
             self.finalize(verbose=verbose, restore_pars=restore_pars)
             sc.printv(f'Run finished after {elapsed:0.2f} s.\n', 1, verbose)
+            if self.pars['enable_surveillance'] == True:
+                if self.first_detection_time is not None:
+                    start_day = self['start_day']
+                    detection_date = start_day + timedelta(days=self.first_detection_time)
+                    sc.printv(f'Pathogen first detected at {detection_date.strftime("%Y-%m-%d")}: on day {self.first_detection_time + 1} of the simulation.\n', 1, verbose)
+                else:
+                    sc.printv(f'Pathogen not detected.\n', 1, verbose)
         
         # print("DEBUG: SMARTWATCH ALERT PROBS 4")
         # final_probs = []
@@ -1161,8 +1363,6 @@ class Sim(cvb.BaseSim):
         #     final_probs.append(self.people.sum_alert_on_day[day]/(self.people.sum_people_on_day[day] + 1e-6))
         # print(final_probs)
         #### END DEBUG
-
-        return self
 
     def validate_people_states(self):
         if self.pars['n_pathogens'] != 1:

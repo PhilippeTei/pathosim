@@ -1,0 +1,32 @@
+import behaviour as bh
+import pathosim as inf 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+ 
+pars = dict(
+    pop_size=2000,
+    pop_type='behaviour_module',
+    n_days = 100,
+    rand_seed = 0,
+    start_day = '2020-01-01',
+    enable_surveillance = True,
+    enable_random_testing = True
+)
+
+MyNewPathogen = inf.SARS_COV_2(2000)   
+sim = inf.Sim(pars=pars, pathogens = [MyNewPathogen], verbose = 1)
+simtest = sim.run_as_generator()
+
+viraldata = []
+
+for t in simtest:
+    mean_viral_loads = np.nanmean(sim.viral_loads)
+    viraldata.append(mean_viral_loads)
+
+viraldata = np.array(viraldata)
+timesteps = np.arange(len(viraldata))
+    
+plt.plot(timesteps, viraldata)
+plt.show()
+    

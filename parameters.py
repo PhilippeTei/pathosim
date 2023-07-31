@@ -54,11 +54,11 @@ def make_pars(version=None, **kwargs):
 
     #------------------------------------------------------------------------------------------#
     #Pathogen-pathogen interaction
-    pars['Mtrans']= None # Mtrans[i,j]=P(transmit Pi | co–infected with Pj) / P(transmit Pi at baseline)
-    pars['Miimm'] = None # P(infection with Pi | co–infected with Pj) / P(infection with Pi at baseline)
+    pars['Mtrans']= None # Mtrans[i,j]=P(transmit Pi | coï¿½infected with Pj) / P(transmit Pi at baseline)
+    pars['Miimm'] = None # P(infection with Pi | coï¿½infected with Pj) / P(infection with Pi at baseline)
     pars['Mcimm'] = None # contribution of current immunity to Pj to immunity to Pi
-    pars['Mdur'] =  None # (duration of Pi | co–infected with Pj) / (duration of Pi at baseline)
-    pars['Msev'] =  None # (severity of Pi | co–infected with Pj) / (severity of Pi at baseline)
+    pars['Mdur'] =  None # (duration of Pi | coï¿½infected with Pj) / (duration of Pi at baseline)
+    pars['Msev'] =  None # (severity of Pi | coï¿½infected with Pj) / (severity of Pi at baseline)
    
     #--------------------------- POPULATION & CONTACTS PARAMETERS------------------------------#
     # Population parameters
@@ -136,6 +136,45 @@ def make_pars(version=None, **kwargs):
     pars['vaccine_pars'] = {} # Vaccines that are being used; populated during initialization
     pars['vaccine_map']  = {} #Reverse mapping from number to vaccine key 
       
+    # Surveilance parameters
+    pars['enable_surveillance'] = False
+    pars['surveillance_test_size'] = None
+    pars['surveillance_test_percent'] = None
+    pars['surveillance_viral_threshold'] = 5
+    pars['surveillance_percentile_threshold'] = 25
+
+    #contact-based surveillance
+    pars['enable_contact_testing'] = False
+    pars['contact_percentile_lower'] = 75
+    pars['contact_percentile_upper'] = 100
+    pars['contact_test_frequency'] = 1
+    pars['contact_test_start_date'] = None
+    pars['contact_test_end_date'] = pars['end_day']
+    
+    #severity-based surveillance
+    pars['enable_severity_testing'] = False
+    pars['severity_test_frequency'] = 1
+    pars['severity_test_start_date'] = None
+    pars['severity_test_end_date'] = pars['end_day']
+
+    #age-based surveillance
+    pars['enable_age_testing'] = False
+    pars['surveillance_age_lower'] = 0
+    pars['surveillance_age_upper'] = 100
+    pars['age_test_frequency'] = 1
+    pars['age_test_start_date'] = None
+    pars['age_test_end_date'] = pars['end_day']
+
+    #random testing
+    pars['enable_random_testing'] = False
+    pars['random_test_frequency'] = 1
+    pars['random_test_start_date'] = None
+    pars['random_test_end_date'] = pars['end_day']
+
+    #syndromic surveillance
+    pars['enable_syndromic_testing'] = False
+    pars['hospital_capacity_percent'] = 0.005
+    pars['syndromic_test_percent'] = 0.1
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)
