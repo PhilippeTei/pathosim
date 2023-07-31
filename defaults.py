@@ -169,7 +169,8 @@ class PeopleMeta(sc.prettyobj):
         ]
 
         self.population_sampling = [
-            'provides_sample_prob' #float 
+            'provides_sample_prob', #float 
+            'IgG_level' #float
         ]
 
         
