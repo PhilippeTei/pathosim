@@ -42,7 +42,7 @@ def make_pars(version=None, **kwargs):
 
     # Calculate stratified statistics
     pars['enable_stratifications'] = False
-    pars['stratification_pars'] = None
+    pars['stratification_pars'] = None 
 
     # Smartwatch par dictionaries
     pars['enable_smartwatches'] = False
@@ -53,7 +53,12 @@ def make_pars(version=None, **kwargs):
     pars['testobjs'] = None  # This naming convention is possibly ambiguous - do NOT supply actually test objects (do that for pars['testing'])
 
     #------------------------------------------------------------------------------------------#
-   
+    #Pathogen-pathogen interaction
+    pars['Mtrans']= None # Mtrans[i,j]=P(transmit Pi | co–infected with Pj) / P(transmit Pi at baseline)
+    pars['Miimm'] = None # P(infection with Pi | co–infected with Pj) / P(infection with Pi at baseline)
+    pars['Mcimm'] = None # contribution of current immunity to Pj to immunity to Pi
+    pars['Mdur'] =  None # (duration of Pi | co–infected with Pj) / (duration of Pi at baseline)
+    pars['Msev'] =  None # (severity of Pi | co–infected with Pj) / (severity of Pi at baseline)
    
     #--------------------------- POPULATION & CONTACTS PARAMETERS------------------------------#
     # Population parameters

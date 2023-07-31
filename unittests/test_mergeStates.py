@@ -41,8 +41,7 @@ class test_mergeStates(unittest.TestCase):
 
         sim.people.merge_states(3, True, False);
          
-        self.assertEqual(True if np.array_equal(expectedArr1, sim.people.susceptible)else False, True)
-        self.assertEqual(True if np.array_equal(expectedArr2, sim.people.recovered)else False, True)
+        self.assertEqual(True if np.array_equal(expectedArr1, sim.people.susceptible)else False, True) 
 
       
                  

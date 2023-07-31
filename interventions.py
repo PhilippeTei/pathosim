@@ -18,7 +18,7 @@ from . import parameters as cvpar
 from . import immunity as cvi
 from . import pathogens as pat 
 from collections import defaultdict
-
+from . import stratify as strat
 
 #%% Helper functions
 
@@ -1630,8 +1630,8 @@ class BaseVaccination(Intervention):
 
             if t >= 0: # Only record these quantities by default if it's not a historical dose
                 factor = sim['pop_scale']/sim.rescale_vec[t] # Scale up by pop_scale, but then down by the current rescale_vec, which gets applied again when results are finalized
-                sim.people.flows[0]['new_doses']      += len(vacc_inds)*factor # Count number of doses given
-                sim.people.flows[0]['new_vaccinated'] += len(new_vacc)*factor # Count number of people not already vaccinated given doses
+                sim.people.flows[0]['new_doses']      += len(strat.get_indices_to_track(sim, vacc_inds))*factor # Count number of doses given
+                sim.people.flows[0]['new_vaccinated'] += len(strat.get_indices_to_track(sim, new_vacc))*factor # Count number of people not already vaccinated given doses
 
         return vacc_inds
 

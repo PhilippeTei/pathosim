@@ -1,10 +1,11 @@
 '''
-Defines the Sim class, Covasim's core class.
+Defines the Sim class, PathoSim's core class.
 '''
 
 #%% Imports
 from argparse import ArgumentError
 from http.client import UnimplementedFileMode
+from pickle import NONE
 import numpy as np
 import pandas as pd
 import sciris as sc
@@ -28,7 +29,8 @@ from . import symptoms as symptoms
 from . import people as cvppl
 from . import pathogens as pat
 from .settings import options as cvo
-#from active_population_sampling import Results as aps_results
+from. import stratify as strat
+from. import pathogen_interactions as p_int
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -80,13 +82,7 @@ class Sim(cvb.BaseSim):
         self._legacy_trans = None     # Whether to use the legacy transmission calculation method (slower; for reproducing earlier results)
         self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
         self.initialized_pathogens = False
-        self.TestScheduler = None
-        self.active_population_surveillance = False # Whether or not to keep track of peoples IgG levels over the course of a simulation 
-
-        #todo remove this later on
-        if 'sp_people' in kwargs:
-            print("sp_people is no longer a parameter, instead, SET people = BehaviourModel, NOT people = BehaviourModel.popdict")
-            raise ArgumentError
+        self.TestScheduler = None 
 
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
@@ -106,23 +102,33 @@ class Sim(cvb.BaseSim):
         self.update_pars(pars, **kwargs) # Update the parameters, if provided
         self.load_data(datafile) # Load the data, if provided
         
+        if not isinstance(self.pars['pathogens'], list):
+            self.pars['pathogens'] = [self.pars['pathogens']]
         self.pathogens = self.pars['pathogens']
-         
+        self.n_pathogens  = len(self.pathogens)
 
+  
         # Process mult-region pars
         if self.pars['enable_multiregion']:
             self.rnames = None
             self.rsizes = None
             self.rstarts = None
             self.process_multireg_pars()
-            print("Multiregion is enabled!")
+            if self.pars['verbose'] != 0:
+                print("Multiregion is enabled!")
 
 
         # Process test object pars
         if self.pars['enable_testobjs']: 
             self.process_testobj_pars()
-            print("COVID-19 testing is enabled!")
-
+            if self.pars['verbose'] != 0:
+                print("COVID-19 testing is enabled!")
+                
+        self.enable_stratifications = self.pars['enable_stratifications']
+        self.stratification_indices = np.array(list(range(self.pars['pop_size'])))
+        if self.pars['enable_stratifications']:  
+            self.stratification_indices = None
+            self.stratification_pars = self.pars['stratification_pars']
        
         return
 
@@ -158,7 +164,8 @@ class Sim(cvb.BaseSim):
         self.t = 0  # The current time index
         self.validate_pars() # Ensure parameters have valid values
         self.set_seed() # Reset the random seed before the population is created
-        self.init_pathogens() 
+        self.init_pathogens() #Initialize pathogen information
+        self.init_pathogen_interactions() #Validate pathogen-pathogen matrices
         self.init_immunity() # initialize information about immunity (if use_waning=True)
         self.init_results() # After initializing the variant, create the results structure
 
@@ -166,11 +173,11 @@ class Sim(cvb.BaseSim):
             self.init_people(reset=reset, init_infections=init_infections, smartwatch_pars=self.pars['smartwatch_pars'], **kwargs) # Create all the people (the heaviest step)
         else:
             self.init_people(reset=reset, init_infections=init_infections, **kwargs)
+        
 
         if self.pars['enable_stratifications']:
             self.init_stratifications()
-            self.people.stratifications = self.stratifications
-            
+        self.init_infections()   
         self.init_interventions()  # Initialize the interventions...
         self.init_surveillance()
         self.init_testobjs() # TODO: Ritchie Toggle. Andrew, I don't think any toggling needs to done here, since 'process_testobj_pars' is toggled. 
@@ -179,10 +186,7 @@ class Sim(cvb.BaseSim):
         self.init_behaviour_updater()
         self.validate_layer_pars() # Once the population is initialized, validate the layer parameters again
         self.set_seed() # Reset the random seed again so the random number stream is consistent
-        
-        #if self.active_population_surveillance == True: 
-            #Initialize a results object to track the IgG levels in the population 
-            #IgG_tracking = aps_results.Results()
+         
 
         self.initialized   = True
         self.complete      = False
@@ -192,21 +196,11 @@ class Sim(cvb.BaseSim):
 
     def init_stratifications(self):
 
-        self.stratifications = {}
-        if self.pars['stratification_pars'] == None: 
-            raise ValueError("Stratification parameters not provided, but enable_stratifications is True")
-        
-        for strat in self.pars['stratification_pars'].keys():
-            self.stratifications[strat] = {}
-            metrics = self.pars['stratification_pars'][strat]['metrics']
-            bracs = self.pars['stratification_pars'][strat]['brackets']
-            for brac in bracs:
-                brac_name = "_".join([ str(brac[0]), str(brac[1])])
-                self.stratifications[strat][brac_name] = {}
-                
-                for metric in metrics:
-                    self.stratifications[strat][brac_name][metric] = np.zeros(self.npts)
-
+        if not isinstance(self.stratification_pars, dict):
+            print("stratification pars is wrong type")
+            raise Exception()
+          
+        self.stratification_indices = strat.set_stratified_indices(np.array(list(range(self.pars['pop_size']))),self.stratification_pars, self) 
         return
 
     def layer_keys(self):
@@ -369,13 +363,38 @@ class Sim(cvb.BaseSim):
         self['n_pathogens'] = self.pars['n_pathogens']
 
         assert self.pars['n_pathogens'] >=1, f"No pathogens are given to the simulation!"
-         
+          
+
         #Initialize the variants 
         for i in range(len(self.pathogens)): 
             self.pathogens[i].initialize(self)
-          
+             
         self.initialized_pathogens = True
          
+
+    def init_pathogen_interactions(self):
+ 
+        #Matrices of pathogen-pathogen interaction
+        for key in ['Mtrans', 'Miimm', 'Mcimm', 'Mdur', 'Msev']:
+            if self.pars[key] is None:
+                if key in ['Mcimm']:
+                    self[key] = np.matrix(np.full((self.n_pathogens, self.n_pathogens), 0.001, dtype = float)) #we assume a cross-immunity of 0 between pathogens (if no matrix is provided)
+                else:
+                    self[key] = np.matrix(np.ones((self.n_pathogens, self.n_pathogens),dtype = float))
+            else:
+                #validate  
+                assert len(self.pars[key]) == self.n_pathogens, f'Matrix {key} is not the right size (should be {self.n_pathogens}X{self.n_pathogens})'
+                for i in range(len(self.pars[key])):
+                    assert len(self.pars[key][i]) == self.n_pathogens, f'Matrix {key} is not the right size (should be {self.n_pathogens}X{self.n_pathogens})'
+                    for j in range(len(self.pars[key][i])):
+                        if self.pars[key][i][j] == 0:
+                            self.pars[key][i][j] = 0.001
+                
+                self[key] = np.matrix(self.pars[key])
+                 
+        
+
+
 
     def init_results(self):
         '''
@@ -465,15 +484,26 @@ class Sim(cvb.BaseSim):
             for key,label in cvd.result_stocks_by_variant.items(): 
                 self.results[i]['variant'][f'n_{key}'] = init_res(label, color=dcols[key], n_variants=self.pathogens[i].n_variants)
 
-            # Populate the rest of the results
-            if self['rescale']:
-                scale = 1
-            else:
-                scale = self['pop_scale']
-            self.rescale_vec   = scale*np.ones(self.npts) # Not included in the results, but used to scale them
-            self.results['date'] = self.datevec
-            self.results['t']    = self.tvec
-            self.results_ready   = False
+
+
+        # Populate the rest of the results
+        if self['rescale']:
+            scale = 1
+        else:
+            scale = self['pop_scale']
+        self.rescale_vec   = scale*np.ones(self.npts) # Not included in the results, but used to scale them
+        self.results['date'] = self.datevec
+        self.results['t']    = self.tvec
+        self.results_ready   = False
+
+        for key,label in cvd.result_flows.items():
+            self.results[f'cum_{key}'] = init_res(f'Cumulative {label}', color=dcols[key])  # Cumulative variables -- e.g. "Cumulative infections"
+                
+        for key,label in cvd.result_flows.items(): # Repeat to keep all the cumulative keys together
+            self.results[f'new_{key}'] = init_res(f'Number of new {label}', color=dcols[key]) # Flow variables -- e.g. "Number of new infections"
+
+        self.results['co-infections'] = init_res(f'Number of co-infections')
+        self.results['co-infected_deaths'] = init_res(f'Number of deaths when co-infected')
 
         return
 
@@ -517,17 +547,18 @@ class Sim(cvb.BaseSim):
             self.people = cvpop.make_people(self, popdict = self.popdict, reset=reset, verbose=verbose, **kwargs)  
 
         else: #input is BehaviourModel
-            self.people = cvpop.make_people(self, popdict = self.popdict.popdict, workplaces = self.popdict.workplaces, n_workplaces = self.popdict.n_workplaces,reset=reset, verbose=verbose, **kwargs) 
+            if self.pars['enable_multiregion']:
+                self.people = cvpop.make_people(self, popdict = self.popdict.total_popdict, workplaces = self.popdict.workplaces, n_workplaces = self.popdict.n_workplaces,reset=reset, verbose=verbose, **kwargs)
+            else:
+                self.people = cvpop.make_people(self, popdict = self.popdict.popdict, workplaces = self.popdict.workplaces, n_workplaces = self.popdict.n_workplaces,reset=reset, verbose=verbose, **kwargs)
 
 
-        self.people.initialize(sim_pars=self.pars) # Fully initialize the people
+        self.people.initialize(sim_pars=self.pars, sim = self) # Fully initialize the people
         self.reset_layer_pars(force=False) # Ensure that layer keys match the loaded population
         
         if self.pars['enable_smartwatches']:
             self.people.init_watches(self.pars['smartwatch_pars'])
-            
-        if init_infections:
-            self.init_infections(verbose=verbose)
+             
          
 
         return self
@@ -562,10 +593,7 @@ class Sim(cvb.BaseSim):
                 cvm.warn(warnmsg)
 
         return
-
-    def finalize_stratifications(self):
-        self.stratifications = self.people.stratifications
-
+    
     def finalize_interventions(self):
         for intervention in self['interventions']:
             if isinstance(intervention, cvi.Intervention):
@@ -647,40 +675,43 @@ class Sim(cvb.BaseSim):
 
         # If we're using multiregion but don't specify particular distribution of infection amount regions, 
         # init as normal. (Uniformly)
-        if self.pars['enable_multiregion']:
-            default_mr_seed_infections = 'region_seed_infections' not in self.pars['multiregion']
-        else:
-            default_mr_seed_infections = False
-
-        if not self.pars['enable_multiregion'] or default_mr_seed_infections:
+      
+        if not self.pars['enable_multiregion']:
             self.init_infections_simple(force, verbose)
             return
         
         # If anyone is non-naive, don't re-initialize
         if self.people.count_not('naive') == 0 or force: # Everyone is naive
 
+
             # Handle anyone who isn't susceptible. Currently not per-region. 
             if self['frac_susceptible'] < 1:
                 inds = cvu.choose(self['pop_size'], np.round((1-self['frac_susceptible'])*self['pop_size']))
                 self.people.make_nonnaive(inds=inds)
-
-            # Infect, based on parameters.
-            regs2inf = self.pars['multiregion']['region_seed_infections']
-
-            if (not isinstance(regs2inf[0], list)):
-                print("Multi-pathogen simulation with multi-region enabled requires region_seed_infections to contain arrays of length: number of pathogens in the simulation ") #TODO change that to be in the pathogen class
                  
-            i_reg = 0
-            for reg in regs2inf:
-                for i in range(len(reg)):
-                    # Create the seed infections
-                    reg_start = self.rstarts[i_reg]
-                    reg_size = self.rsizes[i_reg]
-                    # Choose, without replacement, the appropriate # people. Then, offset to get their actual UIDs. 
-                    inds = cvu.choose(reg_size, regs2inf[reg, i]) + reg_start
+            for i in range(len(self.pathogens)):
+                if not isinstance(self.pathogens[i].pop_infected, dict):
+                    print("Multi-pathogen simulation with multi-region enabled requires an dict of size <<number of regions>> as input for pathogen.pop_infected, where the keys are the region names, the values are the number of initial infected")
+                    continue
+                index =0
+                for key_reg in self.pathogens[i].pop_infected.keys():
+                    ''' 
+                    index = -1
+                    for name in range(len(self.rnames)): 
+                        if str(self.rnames[name]) == str(key_reg):
+                            index == name
+                            break'''
+
+                    if index == -1:
+                        print(f"Region with name {key_reg} not found, make sure the keys in the pop_infected dictionary of pathogen {self.pathogens[i].label} match the region names")
+                        continue
+
+                    reg_start = self.rstarts[index]
+                    reg_size = self.rsizes[index] 
+                    inds = cvu.choose(reg_size, self.pathogens[i].pop_infected[self.rnames[index]]) + reg_start 
                     self.people.infect(inds=inds, layer='seed_infection', pathogen_index = i) # Not counted by results 
-                i_reg += 1
-        
+                    index +=1
+             
         return
 
     def init_infections_simple(self, force=False, verbose=None):
@@ -743,8 +774,8 @@ class Sim(cvb.BaseSim):
 
         t = self.t 
         # If it's the first timestep, infect people
-        if t == 0:
-            self.init_infections(verbose=False)
+        #if t == 0:
+            #self.init_infections(verbose=False)
             
         # Perform initial operations
         #self.rescale() # Check if we need to rescale
@@ -753,6 +784,7 @@ class Sim(cvb.BaseSim):
         contacts = people.update_contacts() # Compute new contacts. For dynamic contacts. 
         hosp_max = people.count1d('severe')   > self['n_beds_hosp'] if self['n_beds_hosp'] is not None else False # Check for acute bed constraint
         icu_max  = people.count1d('critical') > self['n_beds_icu']  if self['n_beds_icu']  is not None else False # Check for ICU bed constraint
+         
          
         people.update_states_pre(t=t) # Update the state of everyone and count the flows. This isn't infecting people nor updating their SEIR's. The date of infection seems to be pre-assigned. 
         #For every pathogen, import pathosims, and import variants
@@ -768,7 +800,8 @@ class Sim(cvb.BaseSim):
                 if n_imports>0:
                     importation_inds = cvu.choose(max_n=self['pop_size'], n=n_imports)
                     people.infect(inds=importation_inds, hosp_max=hosp_max, icu_max=icu_max, layer='importation', pathogen_index = current_pathogen)
-                    self.results[current_pathogen]['n_imports'][t] += n_imports
+                     
+                    self.results[current_pathogen]['n_imports'][t] += len(strat.get_indices_to_track(self, importation_inds))
              
             # Add variants
             for variant in self.pathogens[current_pathogen].variants:
@@ -833,7 +866,10 @@ class Sim(cvb.BaseSim):
                 self.people.date_p_diagnosed[0, testobj.date_positive == t] = t  # Update date_diagnosed with people who received at least one positive test today
                 
                 # This is probably not the Covasim-standard implementation. 
-                self.results[0]['new_diagnoses_custom'][t] += sum(testobj.date_positive == t)
+                if self.enable_stratifications: 
+                    self.results[0]['new_diagnoses_custom'][t] += sum(testobj.date_positive == t) #TODO stratify
+                else:
+                    self.results[0]['new_diagnoses_custom'][t] += sum(testobj.date_positive == t)
                 self.results[0]['cum_diagnoses_custom'][t] += sum(self.results[0]['new_diagnoses_custom'][:t])
 
         
@@ -887,6 +923,9 @@ class Sim(cvb.BaseSim):
                     beta_layer  = cvd.default_float(self['beta_layer'][lkey]) # A scalar; beta for the layer. Ex: 1.0. 
                     rel_trans, rel_sus = cvu.compute_trans_sus(prel_trans, prel_sus, inf_variant, sus, beta_layer, viral_load[current_pathogen], symp, diag, quar, asymp_factor, iso_factor, quar_factor, sus_imm)
                      
+                    rel_trans = p_int.mod_rel_trans(current_pathogen, people.p_exposed, self.n_pathogens, rel_trans, self['Mtrans'])
+                    rel_sus = p_int.mod_rel_sus(current_pathogen, rel_sus, people.p_exposed, self['Miimm'], self['Mcimm'], people.sus_imm, self.n_pathogens, self.pars['pop_size'])
+
                     # Calculate actual transmission
                     pairs = [[p1,p2]] if not self._legacy_trans else [[p1,p2], [p2,p1]] # Support slower legacy method of calculation, but by default skip this loop
                     for p1,p2 in pairs:
@@ -898,27 +937,30 @@ class Sim(cvb.BaseSim):
 
             nv = self.pathogens[current_pathogen].n_variants
             # Update counts for this time step: stocks.
-            for key in cvd.result_stocks.keys():
+            for key in cvd.result_stocks.keys(): 
                 #TODO remove this filtering
-                if key not in ['known_dead', 'quarantined', 'vaccinated']: #SELECTING WHICH STATES ARE CURRENTLY IMPLEMENTED FOR PER PATHOGEN TRACKING
-                    self.results[current_pathogen][f'n_{key}'][t] = people.count2d(f'p_{key}', current_pathogen)
+                if key not in ['known_dead', 'quarantined', 'vaccinated']: #SELECTING WHICH STATES ARE CURRENTLY IMPLEMENTED FOR PER PATHOGEN TRACKING 
+                    self.results[current_pathogen][f'n_{key}'][t] = np.count_nonzero(self.people[f'p_{key}'][current_pathogen][self.stratification_indices])
                 else:
-                    self.results[current_pathogen][f'n_{key}'][t] = people.count1d(key)
-
-                     
+                    self.results[current_pathogen][f'n_{key}'][t] = np.count_nonzero(self.people[key][self.stratification_indices])
+                 
             for key in cvd.result_stocks_by_variant.keys():
                 for variant in range(nv): 
-                    self.results[current_pathogen]['variant'][f'n_{key}'][variant,t] = people.count_by_variant(f'p_{key}', variant, current_pathogen)
+                    self.results[current_pathogen]['variant'][f'n_{key}'][variant,t] =np.count_nonzero(self.people[f'p_{key}'][current_pathogen,variant,:][self.stratification_indices]) 
 
             # Update stock counts for multi-region.
             if self.pars['enable_multiregion']: self.update_results_mr(people, pathogen= current_pathogen) #TODO update this for multi-pathogen
         
             # Update counts for this time step: flows
-            for key,count in people.flows[current_pathogen].items():
+            for key,count in people.flows[current_pathogen].items(): 
                 self.results[current_pathogen][key][t] += count
             for key,count in people.flows_variant[current_pathogen].items():
                 for variant in range(nv):
                     self.results[current_pathogen]['variant'][key][variant][t] += count[variant]
+ 
+        for key in cvd.new_result_flows:    
+            self.results[key][t] += people.flows[key] 
+
 
         for current_pathogen in range(len(self.pathogens)): 
             # Update nab, immunity and IgG for this time step
@@ -936,23 +978,36 @@ class Sim(cvb.BaseSim):
 
         for current_pathogen in range(len(self.pathogens)): 
             inds_alive = cvu.false(people.dead)
-             
-            self.results[current_pathogen]['pop_nabs'][t]            = np.sum(people.nab[current_pathogen, inds_alive[cvu.true(people.nab[current_pathogen, inds_alive])]])/len(inds_alive)
-            self.results[current_pathogen]['pop_imm'][t]            = np.sum(people.imm_level[current_pathogen, inds_alive[cvu.true(people.imm_level[current_pathogen, inds_alive])]])/len(inds_alive)
-             
-            self.results[current_pathogen]['pop_protection'][t]      = np.nanmean(people.sus_imm[current_pathogen])
-            self.results[current_pathogen]['pop_symp_protection'][t] = np.nanmean(people.symp_imm[current_pathogen]) 
-            
-            if self.pathogens[current_pathogen].use_nab_framework: #For IgG levels in population 
-                #TESTING
-                #print("Size of self.results[current_pathogen]['IgG_level']: ", len(self.results[current_pathogen]['IgG_level']))
-                #print("Value of t: ", t)
-                #print("Shape of people['IgG_level']: ", people['IgG_level'].shape)
-                #print("people['IgG_level']: ", people['IgG_level'])
-                # Verify the content of people['IgG_level']
-                
-                self.results[current_pathogen]['IgG_level'][t]       = np.array(people['IgG_level'])
 
+            inds_with_nabs = strat.get_indices_to_track(self, inds_alive[cvu.true(people.nab[current_pathogen, inds_alive])])
+            inds_alive_nabs = strat.get_indices_to_track(self, inds_alive)
+
+            
+            inds_with_imm = strat.get_indices_to_track(self, inds_alive[cvu.true(people.imm_level[current_pathogen, inds_alive])])
+            inds_alive_imm = strat.get_indices_to_track(self, inds_alive)
+             
+            self.results[current_pathogen]['pop_nabs'][t]            = np.sum(people.nab[current_pathogen, inds_with_nabs])/len(inds_alive_nabs)
+            self.results[current_pathogen]['pop_imm'][t]            = np.sum(people.imm_level[current_pathogen,inds_with_imm ])/len(inds_alive_imm)
+             
+            if self.enable_stratifications:
+                sus_imm_mean = 0
+                for i in range(len(people.sus_imm[current_pathogen])):
+                    sus_imm_mean += np.nanmean(people.sus_imm[current_pathogen][i][self.stratification_indices])
+                sus_imm_mean = sus_imm_mean / len(people.sus_imm[current_pathogen])
+
+                self.results[current_pathogen]['pop_protection'][t]      = sus_imm_mean; 
+
+                symp_imm_mean = 0
+                for i in range(len(people.symp_imm[current_pathogen])):
+                    symp_imm_mean += np.nanmean(people.symp_imm[current_pathogen][i][self.stratification_indices])
+                symp_imm_mean = symp_imm_mean / len(people.symp_imm[current_pathogen])
+                 
+                self.results[current_pathogen]['pop_symp_protection'][t] = symp_imm_mean
+
+            else:                                                                                                        
+                self.results[current_pathogen]['pop_protection'][t]      = np.nanmean(people.sus_imm[current_pathogen])  
+                self.results[current_pathogen]['pop_symp_protection'][t] = np.nanmean(people.symp_imm[current_pathogen]) 
+             
 
         # Calculate per-region statistics 
 
@@ -968,19 +1023,22 @@ class Sim(cvb.BaseSim):
             self.complete = True
         return
 
-    def update_results_mr(self, people, pathogen = 0):
+    def update_results_mr(self, people, pathogen = 0): 
         t = self.t
         nv = self.pathogens[pathogen].n_variants
 
         for rname, rstart, rsize in zip(self.rnames, self.rstarts, self.rsizes):
+            strat_indices_in_reg = np.intersect1d(self.stratification_indices, np.array((range(rstart,(rstart+rsize)))))
             for key in cvd.result_stocks.keys():
-                self.results[pathogen][f'{rname}_n_{key}'][t] = people.r_count(key, rstart, rstart+rsize, pathogen)
-
+                if key not in ['known_dead', 'quarantined', 'vaccinated']:
+                    self.results[pathogen][f'{rname}_n_{key}'][t] =np.count_nonzero(self.people[f'p_{key}'][pathogen,strat_indices_in_reg])
+                else:
+                    self.results[pathogen][f'{rname}_n_{key}'][t] =np.count_nonzero(self.people[key][strat_indices_in_reg]) 
+                     
             for key in cvd.result_stocks_by_variant.keys():
                 for variant in range(nv):
-                    self.results[pathogen]['variant'][f'n_{key}'][variant, t] = people.r_count_by_variant(f'p_{key}', variant, rstart, rstart+rsize, pathogen)
-            # TODO: Update the flows. 
-
+                    self.results[pathogen]['variant'][f'n_{key}'][variant, t] =np.count_nonzero(self.people[f'p_{key}'][pathogen, variant, strat_indices_in_reg])
+            
 
     def process_behaviour_pars(self, default_behaviour_pars, passed_behaviour_pars):
         options = ['symptom_quar_pars', 'contact_quar_pars', 'hh_symp_quar_pars', 'enable_symp_early_end', 'enable_hh_symp_exemption', 'enable_contact_exemption', 'smartwatch_behaviour']
@@ -1018,6 +1076,8 @@ class Sim(cvb.BaseSim):
         self.pars['multiregion']['rnames'] = rnames # Useful for people object to access.
         self.pars['multiregion']['rsizes'] = rsizes
         self.pars['multiregion']['rstarts'] = rstarts
+         
+
 
     def process_testobj_pars(self):  # Discussion
         '''
@@ -1135,7 +1195,7 @@ class Sim(cvb.BaseSim):
     def validate_people_states(self):
         if self.pars['n_pathogens'] != 1:
             return;
-          
+           
         assert np.array_equal(self.people.susceptible, self.people.p_susceptible[0]) 
         assert np.array_equal(self.people.naive, self.people.p_naive[0]) 
         assert np.array_equal(self.people.exposed, self.people.p_exposed[0]) 
@@ -1157,20 +1217,7 @@ class Sim(cvb.BaseSim):
         assert np.array_equal(self.people.date_dead,        self.people.date_p_dead[0]       , equal_nan = True)
         assert np.array_equal(self.people.date_diagnosed,   self.people.date_p_diagnosed[0]  , equal_nan = True)
         assert np.array_equal(self.people.date_tested,      self.people.date_p_tested[0]     , equal_nan = True)
-        #if(self.pars['n_variants'][0]>1 and self.complete): 
-        #    for i in range(len(self.people.infectious_variant)):
-         #       if self.people.infectious_variant[i] != self.people.p_infectious_variant[0,i]:
-          #          if(not np.isnan(self.people.infectious_variant[i]) or not  np.isnan(self.people.p_infectious_variant[0,i])):
-           #             assert np.array_equal(self.people.exposed_variant[i], self.people.p_exposed_variant[0,i])
-            #            assert np.array_equal(self.people.infectious_variant[i], self.people.p_infectious_variant[0,i])
-             #           assert np.array_equal(self.people.recovered_variant[i], self.people.p_recovered_variant[0,i]) 
-
-                
-            
-            #assert np.array_equal(self.people.exposed_by_variant, self.people.p_exposed_by_variant[0])
-            #assert np.array_equal(self.people.infectious_by_variant, self.people.p_infectious_by_variant[0])
-
-             
+ 
     
     def finalize(self, verbose=None, restore_pars=True):
         ''' Compute final results '''
@@ -1179,7 +1226,7 @@ class Sim(cvb.BaseSim):
             # Because the results are rescaled in-place, finalizing the sim cannot be run more than once or
             # otherwise the scale factor will be applied multiple times
             raise AlreadyRunError('Simulation has already been finalized')
-
+         
         # Scale the results
         for p in range(len(self.pathogens)):
             for reskey in self.result_keys():
@@ -1196,19 +1243,31 @@ class Sim(cvb.BaseSim):
 
             # Calculate cumulative results
             for key in cvd.result_flows.keys():
+
                 self.results[p][f'cum_{key}'][:] = np.cumsum(self.results[p][f'new_{key}'][:], axis=0)
             for key in cvd.result_flows_by_variant.keys():
                 for variant in range(self.pathogens[p].n_variants):
                     self.results[p]['variant'][f'cum_{key}'][variant, :] = np.cumsum(self.results[p]['variant'][f'new_{key}'][variant, :], axis=0)
-            for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
-                res.values += self.pathogens[p].pop_infected*self.rescale_vec[0]
+            if self.pars['enable_multiregion']:
+                for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
+                    for val in self.pathogens[p].pop_infected.values():
+                        res.values += val*self.rescale_vec[0]
+            else:
+                for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
+                    res.values += self.results[p]['n_exposed'][0]*self.rescale_vec[0]  
+
+        for key in cvd.result_flows.keys():
+            self.results[f'cum_{key}'][:] = np.cumsum(self.results[f'new_{key}'][:], axis=0)
+       
+        for i in range(len(self.results['cum_infections'])):
+            for p in range(len(self.pathogens)):
+                self.results['cum_infections'][i] += self.results[p]['n_exposed'][0] 
 
         # Finalize interventions and analyzers
         self.finalize_interventions()
         self.finalize_surveillance()
         self.finalize_testobjs() # TODO: Ritchie toggle. 
         self.finalize_analyzers()
-        self.finalize_stratifications()
 
         # Final settings
         self.results_ready = True # Set this first so self.summary() knows to print the results
@@ -1261,8 +1320,8 @@ class Sim(cvb.BaseSim):
         for p in range(len(self.pathogens)):
             res = self.results[p]
             count_recov = 1-self['use_waning'] # If waning is on, don't count recovered people as removed
-            self.results[p]['n_alive'][:]         = self.scaled_pop_size - res['cum_deaths'][:] # Number of people still alive
-            self.results[p]['n_naive'][:]         = self.scaled_pop_size - res['cum_deaths'][:] - res['n_recovered'][:] - res['n_exposed'][:] # Number of people naive
+            self.results[p]['n_alive'][:]         = len(self.stratification_indices) - res['cum_deaths'][:] # Number of people still alive
+            self.results[p]['n_naive'][:]         = len(self.stratification_indices) - res['cum_deaths'][:] - res['n_recovered'][:] - res['n_exposed'][:] # Number of people naive
             self.results[p]['n_susceptible'][:]   = res['n_alive'][:] - res['n_exposed'][:] - count_recov*res['cum_recoveries'][:] # Recalculate the number of susceptible people, not agents
             self.results[p]['n_preinfectious'][:] = res['n_exposed'][:] - res['n_infectious'][:] # Calculate the number not yet infectious: exposed minus infectious
             self.results[p]['n_removed'][:]       = count_recov*res['cum_recoveries'][:] + res['cum_deaths'][:] # Calculate the number removed: recovered + dead
@@ -1491,6 +1550,8 @@ class Sim(cvb.BaseSim):
             for key in self.result_keys():
                 summary[p][key] = self.results[p][key][t]
 
+        for key in ['cum_infections', 'cum_reinfections', 'cum_infectious','cum_symptomatic', 'cum_severe', 'cum_critical','cum_recoveries', 'cum_deaths']:
+            summary[key] = self.results[key][t]
         # Update the stored state
         if update:
             self.summary = summary
@@ -1538,6 +1599,19 @@ class Sim(cvb.BaseSim):
                         string += f'   {val:15,.0f} {self.results[p][key].name.lower()}\n'.replace(',', sep) # Use replace since it's more flexible
             string += '\n'
 
+        '''string += f'   {"":5}OVERALL SUMMARY [Placeholder, Requires Fixing For Multi-Pathogen Simulations]:\n'
+ 
+         
+        for key in ['cum_infections', 'cum_reinfections', 'cum_infectious','cum_symptomatic', 'cum_severe', 'cum_critical','cum_recoveries', 'cum_deaths']: 
+            val = np.round(summary[key]) 
+            string += f'   {val:15,.0f} {self.results[key].name.lower()}\n'.replace(',', sep) # Use replace since it's more flexible
+        '''
+        
+        coinfections = self.results['co-infections']
+        coinfections_deaths = self.results['co-infected_deaths']
+        string += f'   {sum(coinfections):15,.0f} cumulative co-infections\n'
+        #string += f'   {sum(coinfections_deaths):15,.0f} cumulative deaths when co-infected'
+        string += '\n'
         # Print or return string
         if not output:
             print(string)
@@ -1780,13 +1854,13 @@ class Sim(cvb.BaseSim):
 
         **Example**::
 
-            sim = cv.Sim().run()
+            sim = pathosim.Sim().run()
             sim.plot_result('r_eff')
         '''
         index = pathogen.pathogen_index
         fig = cvplt.plot_result(sim=self, key=key, pathogen = index, *args, **kwargs)
         return fig
-
+     
 
 def diff_sims(sim1, sim2, skip_key_diffs=False, skip=None, output=False, die=False):
     '''

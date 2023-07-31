@@ -49,6 +49,10 @@ class PeopleMeta(sc.prettyobj):
             'severe_prob',      # Float
             'crit_prob',        # Float
             'death_prob',       # Float
+            'abs_symp_prob',        # Float
+            'abs_severe_prob',      # Float
+            'abs_crit_prob',        # Float
+            'abs_death_prob',       # Float
             'rel_trans',        # Float
             'rel_sus',          # Float
             'viral_load',       # Float
@@ -59,7 +63,11 @@ class PeopleMeta(sc.prettyobj):
             'income',           # Int
             'cons_days_in_quar',    # Int
             'cons_days_neg_rat',    # Int
+<<<<<<< HEAD
             
+=======
+            'is_coinfected'
+>>>>>>> c42d10697c0f411a270ab6c41e9065fa466f9d38
         ]
 
         # Set the states that a person can be in: these are all booleans per person -- used in people.py
