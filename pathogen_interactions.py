@@ -48,3 +48,12 @@ def mod_rel_sus(current_pathogen, rel_sus, p_exposed, Miimm, Mcimm, people_sus_i
     #Calculate updated relative susceptibility to Pi:
     rel_sus *= sus_iimm * sus_cimm
     return rel_sus
+
+def get_disease_traj_alpha(pi, pj, Msev):
+    pi_pj = pi+pj
+    nom1 = pi_pj +  np.sqrt((pi_pj)*(pi_pj) - 4*(pi*pj)*(Msev*pi))
+    nom2 = pi_pj - np.sqrt((pi_pj)*(pi_pj) - 4*(pi*pj)*(Msev*pi))
+    denom = 2*pi*pj
+    result1 = nom1/denom
+    result2 = nom2/denom
+    return min(result1, result2)

@@ -85,7 +85,8 @@ class Sim(cvb.BaseSim):
         self.initialized_pathogens = False
         self.TestScheduler = None 
         self.active_population_surveillance = False # Whether or not to keep track of peoples IgG levels over the course of a simulation 
-        
+        self.aps_program = None # An active population sampling object 
+
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
         super().__init__(default_pars) # Initialize and set the parameters as attributes
@@ -1028,6 +1029,33 @@ class Sim(cvb.BaseSim):
         # Calculate per-region statistics 
 
         ##### DONE CALCULATING STATISTICS #####
+
+        #Look for active population surveillance 
+        #NEED TO TEST STILL
+        if self.active_population_surveillance: # should also maybe have a condition if there are multiple
+            if isinstance(self.aps_program.time, list): # it is a cross-sectional study 
+                if len(self.aps_program.time) > 0: #if sampling periods list is not empty 
+                    period = self.aps_program.time[0] #specify which period we will be sampling in 
+                    if self.t >= period[0] and self.t <= period[1]: #check if the day is in the period 
+                        self.aps_program.apply()
+                    if self.t == period[1]: # If self.t is the end of the first period
+                        self.aps_program.time.pop(0) # will move to the next sampling period 
+            
+            else: # It's a longitduinal study 
+                if self.t % self.aps_program.time == 0: # so its a multiple of the interval, we want to test at this day 
+                    self.aps_program.apply()
+
+
+        # if this is a day we want to test on then apply 
+        # day we want to test on is either: 
+        # a) a day that is in the sampling interval for longitudinal studies 
+        # b) a day that is in the collection period for cross-sectional studies
+
+        # for program in active population surveillance 
+        # self.sampler.apply() --> this will be the same people for longitudinal 
+        # tester.apply() --> will be the same test 
+        # send results.append to store 
+
 
         # Apply analyzers (note this comes with Covasim) -- same syntax as interventions
         for i, analyzer in enumerate(self['analyzers']):
@@ -2080,5 +2108,3 @@ class AlreadyRunError(RuntimeError):
     sim.run() and not taking any timesteps, would be an inadvertent error.
     '''
     pass
-
-# %%

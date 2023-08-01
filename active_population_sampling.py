@@ -7,18 +7,19 @@ class active_population_sampling_program:
     '''
     Class not fully functioning yet. Will combine the Sampler, Test and Results class. 
     '''
-    def __init__(self, people, tests, study_design_pars, sample_frame, sample_frame_pars): 
+    def __init__(self, people, test, study_design_pars, sample_frame, sample_frame_pars): 
         self.people = people 
-        self.tests = tests 
+        self.tests = test
         self.Sampler = Sampler(people, study_design_pars, sample_frame, sample_frame_pars)
         if study_design_pars['design_type'] == 'longitudinal':
-            people_to_test = self.Sampler.apply((self.Sampler.num_participants))
+            self.time = self.Sampler.sampling_interval
             #at end of every self.sampling interval (day #) in the simulation: 
                 #apply a test
                 #send results somewhere as (day #, results of all people tested)
                 #could directly call plot test results, make modifications to only look at interval tested 
         
         elif study_design_pars['design_type'] == 'cross_sectional':
+            self.time = self.Sampler.sampling_periods
             for period, i in enumerate(study_design_pars['sampling_periods']): #can just sample from beginning since their provides_sample_prob doesn't change
                 people_to_sample_per_period = study_design_pars['num_people_captured'][i]
                 people_to_test = self.Sampler.apply((self.Sampler.people_to_sample_per_period))
@@ -27,15 +28,26 @@ class active_population_sampling_program:
 
 
         #for loop for every test period, with each number of samples at each iteration 
-        people_to_test = self.Sampler.apply() 
+     
 
-
-        for test in tests: 
-            #call to plot test results? 
-            break
-        
         #based on the created active surveillance program, the simulation object will sample a certain number of people per day
         #or will continue to take "samples" from the same peopl, to be implemented later 
+
+    def apply(self): 
+        if self.Sampler.study_design_pars['design_type'] == 'longitudinal':
+            people_to_test = self.Sampler.apply((self.Sampler.num_participants))
+            test_results = self.test.apply()
+            #at end of every self.sampling interval (day #) in the simulation: 
+                #apply a test
+                #send results somewhere as (day #, results of all people tested)
+                #could directly call plot test results, make modifications to only look at interval tested 
+        
+        elif self.Sampler.study_design_pars['design_type'] == 'cross_sectional':
+            for period, i in enumerate(self.Sampler.study_design_pars['sampling_periods']): #can just sample from beginning since their provides_sample_prob doesn't change
+                people_to_sample_per_period = self.Sampler.study_design_pars['num_people_captured'][i]
+                people_to_test = self.Sampler.apply((self.Sampler.people_to_sample_per_period))
+
+                #should i set these people who have now been sampled to have a probability of 0? or use their resample factor somehow
 
 
 class Sampler: 
