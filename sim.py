@@ -31,6 +31,7 @@ from . import pathogens as pat
 from .settings import options as cvo
 from. import stratify as strat
 from. import pathogen_interactions as p_int
+#from active_population_sampling import Results as aps_results
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -83,7 +84,8 @@ class Sim(cvb.BaseSim):
         self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
         self.initialized_pathogens = False
         self.TestScheduler = None 
-
+        self.active_population_surveillance = False # Whether or not to keep track of peoples IgG levels over the course of a simulation 
+        
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
         super().__init__(default_pars) # Initialize and set the parameters as attributes
@@ -187,6 +189,10 @@ class Sim(cvb.BaseSim):
         self.validate_layer_pars() # Once the population is initialized, validate the layer parameters again
         self.set_seed() # Reset the random seed again so the random number stream is consistent
          
+
+        #if self.active_population_surveillance == True: 
+            #Initialize a results object to track the IgG levels in the population 
+            #IgG_tracking = aps_results.Results()
 
         self.initialized   = True
         self.complete      = False
@@ -1007,7 +1013,17 @@ class Sim(cvb.BaseSim):
             else:                                                                                                        
                 self.results[current_pathogen]['pop_protection'][t]      = np.nanmean(people.sus_imm[current_pathogen])  
                 self.results[current_pathogen]['pop_symp_protection'][t] = np.nanmean(people.symp_imm[current_pathogen]) 
-             
+            
+            if self.pathogens[current_pathogen].use_nab_framework: #For IgG levels in population 
+                #TESTING
+                #print("Size of self.results[current_pathogen]['IgG_level']: ", len(self.results[current_pathogen]['IgG_level']))
+                #print("Value of t: ", t)
+                #print("Shape of people['IgG_level']: ", people['IgG_level'].shape)
+                #print("people['IgG_level']: ", people['IgG_level'])
+                # Verify the content of people['IgG_level']
+                
+                self.results[current_pathogen]['IgG_level'][t]       = np.array(people['IgG_level'])
+
 
         # Calculate per-region statistics 
 
