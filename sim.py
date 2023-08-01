@@ -31,6 +31,7 @@ from . import pathogens as pat
 from .settings import options as cvo
 from. import stratify as strat
 from. import pathogen_interactions as p_int
+#from active_population_sampling import Results as aps_results
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -83,6 +84,8 @@ class Sim(cvb.BaseSim):
         self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
         self.initialized_pathogens = False
         self.TestScheduler = None 
+        self.active_population_surveillance = False # Whether or not to keep track of peoples IgG levels over the course of a simulation 
+        self.aps_program = None # An active population sampling object 
 
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
@@ -188,9 +191,14 @@ class Sim(cvb.BaseSim):
         self.set_seed() # Reset the random seed again so the random number stream is consistent
          
 
+        #if self.active_population_surveillance == True: 
+            #Initialize a results object to track the IgG levels in the population 
+            #IgG_tracking = aps_results.Results()
+
         self.initialized   = True
         self.complete      = False
         self.results_ready = False
+
         return self
 
     def init_stratifications(self):
@@ -463,6 +471,11 @@ class Sim(cvb.BaseSim):
             self.results[i]['pop_protection']      = init_res('Population immunity protection', scale=False, color=dcols.pop_protection)
             self.results[i]['pop_symp_protection'] = init_res('Population symptomatic protection', scale=False, color=dcols.pop_symp_protection)
 
+            #IgG Level Results: The result for each day is kept in an array len = num_days +1 which contains an array of 
+            #people's IgG levels in the population at each day 
+            self.results[i]['IgG_level'] = np.full(((self.pars['n_days'] +1), self.pars['pop_size']), 0, dtype = int)
+        
+        
             # TODO: Need to check this with Andrew. Discussion. 
             self.results[i]['new_diagnoses_custom']      = init_res('Number of new diagnoses with custom testing module')
             self.results[i]['cum_diagnoses_custom']      = init_res('Cumulative diagnoses with custom testing module')
@@ -957,17 +970,18 @@ class Sim(cvb.BaseSim):
 
 
         for current_pathogen in range(len(self.pathogens)): 
-            # Update nab and immunity for this time step
+            # Update nab, immunity and IgG for this time step
             #if self['use_waning']: 
             if self.pathogens[current_pathogen].use_nab_framework: 
                 has_nabs = cvu.true(people.peak_nab[current_pathogen])
                 if len(has_nabs):
                     cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
+                cvimm.update_IgG(people, current_pathogen)
             else:
                 has_imm = np.where(people.imm_level[current_pathogen] > 0)
                 if len(has_imm):
                     cvimm.update_imm(people, has_imm[0], current_pathogen, self.pathogens[current_pathogen].imm_final_value, self.pathogens[current_pathogen].imm_peak, self.pathogens[current_pathogen].imm_days_to_final_value, self.pathogens[current_pathogen].imm_days_to_peak)
-
+        
 
         for current_pathogen in range(len(self.pathogens)): 
             inds_alive = cvu.false(people.dead)
@@ -1000,11 +1014,48 @@ class Sim(cvb.BaseSim):
             else:                                                                                                        
                 self.results[current_pathogen]['pop_protection'][t]      = np.nanmean(people.sus_imm[current_pathogen])  
                 self.results[current_pathogen]['pop_symp_protection'][t] = np.nanmean(people.symp_imm[current_pathogen]) 
-             
+            
+            if self.pathogens[current_pathogen].use_nab_framework: #For IgG levels in population 
+                #TESTING
+                #print("Size of self.results[current_pathogen]['IgG_level']: ", len(self.results[current_pathogen]['IgG_level']))
+                #print("Value of t: ", t)
+                #print("Shape of people['IgG_level']: ", people['IgG_level'].shape)
+                #print("people['IgG_level']: ", people['IgG_level'])
+                # Verify the content of people['IgG_level']
+                
+                self.results[current_pathogen]['IgG_level'][t]       = np.array(people['IgG_level'])
+
 
         # Calculate per-region statistics 
 
         ##### DONE CALCULATING STATISTICS #####
+
+        #Look for active population surveillance 
+        #NEED TO TEST STILL
+        if self.active_population_surveillance: # should also maybe have a condition if there are multiple
+            if isinstance(self.aps_program.time, list): # it is a cross-sectional study 
+                if len(self.aps_program.time) > 0: #if sampling periods list is not empty 
+                    period = self.aps_program.time[0] #specify which period we will be sampling in 
+                    if self.t >= period[0] and self.t <= period[1]: #check if the day is in the period 
+                        self.aps_program.apply()
+                    if self.t == period[1]: # If self.t is the end of the first period
+                        self.aps_program.time.pop(0) # will move to the next sampling period 
+            
+            else: # It's a longitduinal study 
+                if self.t % self.aps_program.time == 0: # so its a multiple of the interval, we want to test at this day 
+                    self.aps_program.apply()
+
+
+        # if this is a day we want to test on then apply 
+        # day we want to test on is either: 
+        # a) a day that is in the sampling interval for longitudinal studies 
+        # b) a day that is in the collection period for cross-sectional studies
+
+        # for program in active population surveillance 
+        # self.sampler.apply() --> this will be the same people for longitudinal 
+        # tester.apply() --> will be the same test 
+        # send results.append to store 
+
 
         # Apply analyzers (note this comes with Covasim) -- same syntax as interventions
         for i, analyzer in enumerate(self['analyzers']):
@@ -2057,5 +2108,3 @@ class AlreadyRunError(RuntimeError):
     sim.run() and not taking any timesteps, would be an inadvertent error.
     '''
     pass
-
-# %%

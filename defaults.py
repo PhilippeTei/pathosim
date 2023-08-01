@@ -171,12 +171,18 @@ class PeopleMeta(sc.prettyobj):
             'x_p3',
             'y_p3',
         ]
+
+        self.population_sampling = [
+            'provides_sample_prob', #float 
+            'IgG_level' #float
+        ]
+
         
-        self.all_states = self.person + self.states + self.pathogen_states + self.pathogen_variants+ self.imm_states + self.nab_states + self.imm_levels+ self.vacc_states + self.dates+ self.pathogen_dates + self.durs + self.vl_points
+        self.all_states = self.person + self.states + self.pathogen_states + self.pathogen_variants+ self.imm_states + self.nab_states + self.imm_levels+ self.vacc_states + self.dates+ self.pathogen_dates + self.durs + self.vl_points + self.population_sampling
 
         # Validate 
         self.state_types = ['person', 'states','pathogen_states', 'pathogen_variants', 'imm_states',
-                            'nab_states', 'vacc_states', 'dates', 'pathogen_dates', 'durs', 'all_states', 'imm_levels']
+                            'nab_states', 'vacc_states', 'dates', 'pathogen_dates', 'durs', 'all_states', 'imm_levels', 'population_sampling']
         for state_type in self.state_types:
             states = getattr(self, state_type)
             n_states        = len(states)

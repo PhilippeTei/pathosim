@@ -98,6 +98,7 @@ def update_imm(people, inds, pathogen, min_imm, max_imm, days_to_min, days_to_ma
     ''' 
     people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['date_p_recovered'][pathogen], people['date_p_dead'][pathogen], people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people['p_exposed'][pathogen], people.t, people['date_p_exposed'][pathogen],  people['curr_min'][pathogen],people['p_recovered'][pathogen],  people.imm_level[pathogen],inds,min_imm, max_imm,days_to_min,days_to_max)
     return
+
  
 @nb.njit()
 def update_imm_nb(people_dead, people_date_rec, people_date_dead, people_t_peak, people_t_min, people_exposed, t, people_date_exposed, people_curr_min, people_recovered, people_imm_level, inds, min_imm, max_imm, days_to_min, days_to_max):
@@ -146,7 +147,19 @@ def validate_imm(i, pathogen, people, mini, maxi, rec_dead_date):
         assert abs(people.imm_level[pathogen, i] - maxi) < 0.01
          
 
-             
+def update_IgG(people, pathogen):
+    '''
+    Step IgG levels forward in time 
+    ''' 
+    conversion_factor = 69.13 #slope
+    slope_adjustment = -268.62 
+    #error_range = (0.14, 2.42) From the upper and lower bounds of the trendline
+    error_range = (0.14, 0.42)
+    inds_alive = cvu.false(people.dead)
+    inds_with_nabs = inds_alive[cvu.true(people.nab[pathogen, inds_alive])]
+    error_values = np.random.uniform(error_range[0], error_range[1], size=len(inds_with_nabs))
+    people['IgG_level'][inds_with_nabs] = people['nab'][0][inds_with_nabs] * conversion_factor * error_values - slope_adjustment
+
 
 def calc_VE(nab, ax, pars):
     '''
