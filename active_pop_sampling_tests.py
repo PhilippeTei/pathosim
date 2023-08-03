@@ -5,27 +5,55 @@ import matplotlib.pyplot as plt
 import pathosim as inf
 import numpy as np
 
+
+b_immunoassay_test_true = aps.Immunoassay(3, binary_result=True, pos_threshold=4)
 pathogen = inf.SARS_COV_2(20)
 pathogen.add_existing_variant('alpha', days=5, n_imports=10)
-sim = inf.Sim(pop_size=100, pop_type ='random', pathogens=[pathogen])
+#aps_program_test = aps.active_population_sampling_program(b_immunoassay_test_true,  {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
+#                                        'num_people_captured': [10, 10]}, 'canadian_blood_donors')
+
+aps_pars = {
+    'test' : b_immunoassay_test_true, 
+    'study_design_pars' : {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 7), (21, 28)], 'num_people_captured': [10, 10]},
+    'sample_frame' : 'canadian_blood_donors'
+}
+'''
+pars = dict(
+        use_waning    = True,            
+        pop_size      = 100,           
+        pop_type      = 'random',      
+        n_days        = 100,                         
+        rand_seed     = 0,
+        pathogens=[pathogen],
+        active_surveillance_pars = aps_pars
+)      
+'''
+
+#sim = inf.Sim(pars)
+#NEED TO FIX PAR MISMATCH WHEN TRYING TO RUN SIM WITH PARS DICT
+#aps_program_test = aps.active_population_sampling_program(ppl, b_immunoassay_test_true,  {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
+#                                        'num_people_captured': [10, 10]}, 'canadian_blood_donors')
+sim = inf.Sim(pop_size=100, pop_type ='random', pathogens=[pathogen], active_surveillance_pars = aps_pars)
 sim.run()
-sampler_test = aps.Sampler(sim.people, {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
-                                        'num_people_captured': [50, 50]}, 'canadian_blood_donors')
+#sampler_test = aps.Sampler(sim.people, {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
+#                                        'num_people_captured': [50, 50]}, 'canadian_blood_donors')
 
 #different tests to run 
-b_immunoassay_test_true = aps.Immunoassay(3, binary_result=True, pos_threshold=4)
 b_immunoassay_test_false = aps.Immunoassay(3, binary_result=True, pos_threshold=7)
 q_immunoassay_test = aps.Immunoassay(3)
 LOD_under_test = aps.Immunoassay(6)
 LOD_under_b_test = aps.Immunoassay(6, binary_result=True, pos_threshold=5)
 
 #use sampler parameters to select 10 people
-people_to_test = sampler_test.apply(10)
+#people_to_test = sampler_test.apply(10)
 #test these 10 people 
 #q_immunoassay_test.apply(sampler_test.people, people_to_test)
 
-aps.plot_true_IgG_levels(sim, sim.people, people_to_test)
-aps.plot_test_IgG_levels(sim, people_to_test, q_immunoassay_test)
+'''
+TESTING PLOTTING FUNCTIONS
+'''
+#aps.plot_true_IgG_levels(sim, sim.people, people_to_test)
+#aps.plot_test_IgG_levels(sim, people_to_test, q_immunoassay_test)
 
 #test_results = LOD_under_b_test.apply(sampler_test.people, people_to_test)
 

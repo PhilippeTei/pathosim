@@ -31,7 +31,7 @@ from . import pathogens as pat
 from .settings import options as cvo
 from. import stratify as strat
 from. import pathogen_interactions as p_int
-#from active_population_sampling import Results as aps_results
+from active_population_sampling import active_population_sampling_program as aps
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -84,7 +84,7 @@ class Sim(cvb.BaseSim):
         self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
         self.initialized_pathogens = False
         self.TestScheduler = None 
-        self.active_population_surveillance = False # Whether or not to keep track of peoples IgG levels over the course of a simulation 
+        self.active_surveillance_pars = None
         self.aps_program = None # An active population sampling object 
 
         # Make default parameters (using values from parameters.py)
@@ -191,9 +191,8 @@ class Sim(cvb.BaseSim):
         self.set_seed() # Reset the random seed again so the random number stream is consistent
          
 
-        #if self.active_population_surveillance == True: 
-            #Initialize a results object to track the IgG levels in the population 
-            #IgG_tracking = aps_results.Results()
+        if self.pars['active_surveillance_pars']: #Creates active surveillance object with dictionary of pars
+            self.aps_program = aps(self.people, **self.pars['active_surveillance_pars'])
 
         self.initialized   = True
         self.complete      = False
@@ -1032,18 +1031,25 @@ class Sim(cvb.BaseSim):
 
         #Look for active population surveillance 
         #NEED TO TEST STILL
-        if self.active_population_surveillance: # should also maybe have a condition if there are multiple
+        if self.aps_program: # should also maybe have a condition if there are multiple
             if isinstance(self.aps_program.time, list): # it is a cross-sectional study 
                 if len(self.aps_program.time) > 0: #if sampling periods list is not empty 
                     period = self.aps_program.time[0] #specify which period we will be sampling in 
+                    num_people_per_day = self.aps_program.sampler.study_design_pars['num_people_captured'][0]//(period[1] - period[0])
                     if self.t >= period[0] and self.t <= period[1]: #check if the day is in the period 
-                        self.aps_program.apply()
+                        people_to_test, test_results = self.aps_program.apply(num_people = num_people_per_day)
+                        print(people_to_test)
+                        self.aps_program.results.store_results(self.t, people_to_test, test_results)
                     if self.t == period[1]: # If self.t is the end of the first period
                         self.aps_program.time.pop(0) # will move to the next sampling period 
+                        self.aps_program.sampler.study_design_pars['num_people_captured'].pop(0)
             
             else: # It's a longitduinal study 
                 if self.t % self.aps_program.time == 0: # so its a multiple of the interval, we want to test at this day 
-                    self.aps_program.apply()
+                    people_to_test, test_results = self.aps_program.apply()
+                    self.aps_program.results.store_results(self.t, people_to_test, test_results)
+
+
 
 
         # if this is a day we want to test on then apply 
@@ -1065,6 +1071,12 @@ class Sim(cvb.BaseSim):
         self.t += 1
         if self.t == self.npts:
             self.complete = True
+
+        if self.t == 59: 
+            print(self.aps_program.results.get_results(31))
+            
+            
+
         return
 
     def update_results_mr(self, people, pathogen = 0): 

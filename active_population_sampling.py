@@ -7,22 +7,22 @@ class active_population_sampling_program:
     '''
     Class not fully functioning yet. Will combine the Sampler, Test and Results class. 
     '''
-    def __init__(self, people, test, study_design_pars, sample_frame, sample_frame_pars): 
+    def __init__(self, people, test, study_design_pars, sample_frame, sample_frame_pars = None): 
         self.people = people 
-        self.tests = test
-        self.Sampler = Sampler(people, study_design_pars, sample_frame, sample_frame_pars)
+        self.test = test
+        self.sampler = Sampler(people, study_design_pars, sample_frame, sample_frame_pars)
+        self.results = Results()
+
         if study_design_pars['design_type'] == 'longitudinal':
-            self.time = self.Sampler.sampling_interval
+            self.time = self.sampler.sampling_interval
             #at end of every self.sampling interval (day #) in the simulation: 
                 #apply a test
                 #send results somewhere as (day #, results of all people tested)
                 #could directly call plot test results, make modifications to only look at interval tested 
         
         elif study_design_pars['design_type'] == 'cross_sectional':
-            self.time = self.Sampler.sampling_periods
-            for period, i in enumerate(study_design_pars['sampling_periods']): #can just sample from beginning since their provides_sample_prob doesn't change
-                people_to_sample_per_period = study_design_pars['num_people_captured'][i]
-                people_to_test = self.Sampler.apply((self.Sampler.people_to_sample_per_period))
+            self.time = self.sampler.sampling_periods
+        
 
                 #should i set these people who have now been sampled to have a probability of 0? or use their resample factor somehow
 
@@ -33,23 +33,20 @@ class active_population_sampling_program:
         #based on the created active surveillance program, the simulation object will sample a certain number of people per day
         #or will continue to take "samples" from the same peopl, to be implemented later 
 
-    def apply(self): 
-        if self.Sampler.study_design_pars['design_type'] == 'longitudinal':
-            people_to_test = self.Sampler.apply((self.Sampler.num_participants))
-            test_results = self.test.apply()
-            #at end of every self.sampling interval (day #) in the simulation: 
+    def apply(self, num_people=None):
+        #at end of every self.sampling interval (day #) in the simulation: 
                 #apply a test
                 #send results somewhere as (day #, results of all people tested)
                 #could directly call plot test results, make modifications to only look at interval tested 
+        if self.sampler.study_design_pars['design_type'] == 'longitudinal':
+            people_to_test = self.sampler.apply(self.sampler.num_participants)
+        elif self.sampler.study_design_pars['design_type'] == 'cross_sectional':
+            people_to_test = self.sampler.apply(num_people)
         
-        elif self.Sampler.study_design_pars['design_type'] == 'cross_sectional':
-            for period, i in enumerate(self.Sampler.study_design_pars['sampling_periods']): #can just sample from beginning since their provides_sample_prob doesn't change
-                people_to_sample_per_period = self.Sampler.study_design_pars['num_people_captured'][i]
-                people_to_test = self.Sampler.apply((self.Sampler.people_to_sample_per_period))
-
-                #should i set these people who have now been sampled to have a probability of 0? or use their resample factor somehow
-
-
+        test_results = self.test.apply(self.people, people_to_test)
+        return people_to_test, test_results
+    
+    #should i set these people who have now been sampled to have a probability of 0? or use their resample factor somehow
 class Sampler: 
     '''
     A class which uses a inputted sample frame and design to assign a probability to each person in the population of being sampled. 
@@ -211,9 +208,9 @@ class Sampler:
         
         probability_list = self.people['provides_sample_prob']
         #normalized_probs = probability_list / np.sum(probability_list)
-        print(probability_list)
+        #print(probability_list)
         can_sample = bernoulli_trials(probability_list)
-        print(can_sample)
+        #print(can_sample)
         # Get the indices of True values in the can_sample list
         true_indices = np.where(can_sample)[0]
 
@@ -302,9 +299,34 @@ class Immunoassay:
 
 class Results(): 
     #Results class to store test results 
+    def __init__(self):
+        self.test_results = {}
 
-    def __init__(self) -> None:
-        all_results_over_t = np.array([])
+    def store_results(self, day, people_indices, test_results):
+        """
+        Store the test results for multiple people on a given day.
+
+        Args:
+            day (int): The day of the simulation.
+            people_indices (list): A list of person indices.
+            test_results (list): A list of test results corresponding to the people indices.
+        """
+        for person_index, test_result in zip(people_indices, test_results):
+            if person_index not in self.test_results:
+                self.test_results[person_index] = []
+            self.test_results[person_index].append((day, test_result))
+
+    def get_results(self, person_index):
+        """
+        Get the stored test results for a specific person.
+
+        Args:
+            person_index (int): The index of the person.
+
+        Returns:
+            list: A list of tuples representing test results for the person, where each tuple is (day, test_result).
+        """
+        return self.test_results.get(person_index, [])
 
 
 
