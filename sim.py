@@ -993,23 +993,23 @@ class Sim(cvb.BaseSim):
                     hospital_capacity = self.pars['hospital_capacity_percent'] * self['pop_size']
 
                     # Initialize the hospital probabilities to a small value
-                    self.hospital_probabilities = np.full(self['pop_size'], 0.01)
+                    self.hospital_probabilities = np.full(self['pop_size'], 0.00)
 
                     # Increase the probabilities for those who are susceptible
                     susceptible_indices = np.where(self.people.susceptible == True)
-                    self.hospital_probabilities[susceptible_indices] += 0.04
+                    self.hospital_probabilities[susceptible_indices] += 0.00
 
                     # Increase the probabilities for those with mild symptoms
                     symptomatic_indices = np.where(self.people.symptomatic == True)
-                    self.hospital_probabilities[symptomatic_indices] += 0.1
+                    self.hospital_probabilities[symptomatic_indices] += 0.5
 
                     # Increase the probabilities for those with severe symptoms
                     severe_indices = np.where(self.people.severe == True)
-                    self.hospital_probabilities[severe_indices] += 0.45
+                    self.hospital_probabilities[severe_indices] += 0.25
 
                     # Increase the probabilities for those with critical symptoms
                     critical_indices = np.where(self.people.critical == True)
-                    self.hospital_probabilities[critical_indices] += 0.2
+                    self.hospital_probabilities[critical_indices] += 0.25
 
                     # Set the probabilities to 0 for those who are dead
                     dead_indices = np.where(self.people.dead == True)
