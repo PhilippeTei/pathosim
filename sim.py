@@ -152,7 +152,13 @@ class Sim(cvb.BaseSim):
 
         # Initialization code for early detection here
         self.first_detection_time = None
+        self.confirmed_detection_time = None
         self.viral_loads = np.zeros(self['pop_size'])
+        self.surveillance_done_today = False #check if surveillance has been done today in general
+        self.tested_today_inds = np.full(self['pop_size'], False) #list of indices of people who have been tested today
+        self.days_in_hospital = np.zeros(self['pop_size'])
+        self.days_to_test = self.pars['syndromic_days_to_test']
+        self.surveillance_time_to_confirmation = self.pars['surveillance_time_to_confirmation']
 
         return
 
@@ -770,8 +776,11 @@ class Sim(cvb.BaseSim):
     def check_detection(self, viral_loads, percent_threshold, viral_load_threshold):
         if len(self.viral_loads) == 0:
             return False
-        count = sum(1 for load in self.viral_loads if load > viral_load_threshold)
-        percentage = count / len(viral_loads) * 100
+        tested_viral_loads = self.viral_loads[self.tested_today_inds]
+        if len(tested_viral_loads) == 0:
+            return False
+        count = sum(1 for load in tested_viral_loads if load > viral_load_threshold)
+        percentage = count / len(tested_viral_loads) * 100
         return percentage >= percent_threshold
 
 
@@ -969,102 +978,145 @@ class Sim(cvb.BaseSim):
                 #all of the below converts date strings to datetime objects so functions can be performed on them
                 current_date = sc.date(self.current_day)
 
-                #testing parameters for contact-based testing
+                #testing parameters for surveillance
                 if self.pars['enable_surveillance'] == True:
+
+                    self.surveillance_done_today = False
+                    self.tested_today_inds.fill(False)
+
+                    hospital_visit_inds = np.array([])
                     
+                    #set default syndromic surveillance params
+                    self.surveillance_time_to_confirmation = 7
+
+                    #this is the total number of hospital places available per time step
+                    hospital_capacity = self.pars['hospital_capacity_percent'] * self['pop_size']
+
+                    # Initialize the hospital probabilities to a small value
+                    self.hospital_probabilities = np.full(self['pop_size'], 0.01)
+
+                    # Increase the probabilities for those who are susceptible
+                    susceptible_indices = np.where(self.people.susceptible == True)
+                    self.hospital_probabilities[susceptible_indices] += 0.04
+
+                    # Increase the probabilities for those with mild symptoms
+                    symptomatic_indices = np.where(self.people.symptomatic == True)
+                    self.hospital_probabilities[symptomatic_indices] += 0.1
+
+                    # Increase the probabilities for those with severe symptoms
+                    severe_indices = np.where(self.people.severe == True)
+                    self.hospital_probabilities[severe_indices] += 0.45
+
+                    # Increase the probabilities for those with critical symptoms
+                    critical_indices = np.where(self.people.critical == True)
+                    self.hospital_probabilities[critical_indices] += 0.2
+
+                    # Set the probabilities to 0 for those who are dead
+                    dead_indices = np.where(self.people.dead == True)
+                    self.hospital_probabilities[dead_indices] = 0
+
+                    ## Perform a Bernoulli trial for each individual
+                    hospital_visits = np.random.binomial(1, self.hospital_probabilities)
+
+                    # Get indices of individuals who seek to go to the hospital
+                    hospital_visit_seek = np.where(hospital_visits == 1)[0]
+
+                    #sort individuals who seek to go to the hospital by hospital probabilities
+                    sorted_seek = np.argsort(self.hospital_probabilities[hospital_visit_seek])[::-1]
+
+                    #cap the number of people who can go to the hospital at the hospital capacity
+                    hospital_visit_inds = sorted_seek[:int(hospital_capacity)]
+
+                    #for those who visited the hospital today, add 1 to their days in hospital
+                    self.days_in_hospital[hospital_visit_inds] += 1
+
+                    #get indices of those who have been in the hospital for x days
+                    hospitalized_for_x_days_inds = np.where(self.days_in_hospital == self.days_to_test)[0]
+
+                    #testing parameters for syndromic surveillance
                     if self.pars['enable_syndromic_testing'] == True:
-                        
-                        #this is the total number of hospital places available per time step
-                        hospital_capacity = self.pars['hospital_capacity_percent'] * self['pop_size']
-
-                        # Initialize the hospital probabilities to a small value
-                        self.hospital_probabilities = np.full(self['pop_size'], 0.01)
-
-                        # Increase the probabilities for those who are susceptible
-                        susceptible_indices = np.where(self.people.susceptible == True)
-                        self.hospital_probabilities[susceptible_indices] += 0.04
-
-                        # Increase the probabilities for those with mild symptoms
-                        symptomatic_indices = np.where(self.people.symptomatic == True)
-                        self.hospital_probabilities[symptomatic_indices] += 0.1
-
-                        # Increase the probabilities for those with severe symptoms
-                        severe_indices = np.where(self.people.severe == True)
-                        self.hospital_probabilities[severe_indices] += 0.45
-
-                        # Increase the probabilities for those with critical symptoms
-                        critical_indices = np.where(self.people.critical == True)
-                        self.hospital_probabilities[critical_indices] += 0.2
-
-                        # Set the probabilities to 0 for those who are dead
-                        dead_indices = np.where(self.people.dead == True)
-                        self.hospital_probabilities[dead_indices] = 0
-
-                        ## Perform a Bernoulli trial for each individual
-                        hospital_visits = np.random.binomial(1, self.hospital_probabilities)
-
-                        # Get indices of individuals who go to the hospital
-                        hospital_visit_inds = np.where(hospital_visits == 1)[0]
-
-                        #testing parameters for syndromic surveillance
-                        inds = hospital_visit_inds
+                        inds = hospitalized_for_x_days_inds
                         surveillance_test_size = round(len(inds)*self.pars['syndromic_test_percent'])
-                        if self.pars['surveillance_test_size'] is not None:
-                            surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
-                        elif self.pars['surveillance_test_percent'] is not None:
-                            surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
+                        self.surveillance_done_today = True
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
-                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
-                        
-                    
+                        self.tested_today_inds[selected_inds] = True
+                        self.viral_loads_syndromic = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        np.put(self.viral_loads, selected_inds, self.viral_loads_syndromic)                 
+
                     #testing parameters for contact-based testing
-                    elif self.pars['enable_contact_testing'] == True and self.t % self.pars['contact_test_frequency'] == 0 and self.contact_test_start_date <= current_date <= self.contact_test_end_date:
-                        inds = np.where((contact_percentiles >= self.pars['contact_percentile_lower']) & (contact_percentiles <= self.pars['contact_percentile_upper']))[0]
+                    if self.pars['enable_contact_testing'] == True and self.t % self.pars['contact_test_frequency'] == 0 and self.contact_test_start_date <= current_date <= self.contact_test_end_date:
+                        unsorted_inds = np.where((contact_percentiles >= self.pars['contact_percentile_lower']) & (contact_percentiles <= self.pars['contact_percentile_upper']))[0]
+                        unsorted_inds = unsorted_inds[~self.people.dead[unsorted_inds]]
+                        tested_today_inds = np.where(self.tested_today_inds == True)[0]
+                        inds = np.setdiff1d(unsorted_inds, np.concatenate([hospital_visit_inds, tested_today_inds]))
                         surveillance_test_size = len(inds)
+                        self.surveillance_done_today = True
                         if self.pars['surveillance_test_size'] is not None:
                             surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
-                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
-                        
+                        self.tested_today_inds[selected_inds] = True
+                        self.viral_loads_contact = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        np.put(self.viral_loads, selected_inds, self.viral_loads_contact)
+
                     #testing parameters for age-based testing
-                    elif self.pars['enable_age_testing'] == True and self.t % self.pars['age_test_frequency'] == 0 and self.age_test_start_date <= current_date <= self.age_test_end_date:
-                        inds = np.where((people.age >= self.pars['surveillance_age_lower']) & (people.age <= self.pars['surveillance_age_upper']))[0]
+                    if self.pars['enable_age_testing'] == True and self.t % self.pars['age_test_frequency'] == 0 and self.age_test_start_date <= current_date <= self.age_test_end_date:
+                        unsorted_inds = np.where((people.age >= self.pars['surveillance_age_lower']) & (people.age <= self.pars['surveillance_age_upper']))[0]
+                        unsorted_inds = unsorted_inds[~self.people.dead[unsorted_inds]]
+                        tested_today_inds = np.where(self.tested_today_inds == True)[0]
+                        inds = np.setdiff1d(unsorted_inds, np.concatenate([hospital_visit_inds, tested_today_inds]))
                         surveillance_test_size = len(inds)
+                        self.surveillance_done_today = True
                         if self.pars['surveillance_test_size'] is not None:
                             surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
-                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        self.tested_today_inds[selected_inds] = True
+                        self.viral_loads_age = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        np.put(self.viral_loads, selected_inds, self.viral_loads_age)
 
                     #testing parameters for severity-based testing
-                    elif self.pars['enable_severity_testing'] == True and self.t % self.pars['severity_test_frequency'] == 0 and self.severity_test_start_date <= current_date <= self.severity_test_end_date:
-                        inds = np.where((people.severe == True) | (people.critical == True))[0] #TODO: symp_prob rather than severe
+                    if self.pars['enable_severity_testing'] == True and self.t % self.pars['severity_test_frequency'] == 0 and self.severity_test_start_date <= current_date <= self.severity_test_end_date:
+                        unsorted_inds = np.where(people.symp_prob[0] >= self.pars['severity_symp_prob_threshold'])[0]
+                        unsorted_inds = unsorted_inds[~self.people.dead[unsorted_inds]]
+                        tested_today_inds = np.where(self.tested_today_inds == True)[0]
+                        inds = np.setdiff1d(unsorted_inds, np.concatenate([hospital_visit_inds, tested_today_inds]))
                         surveillance_test_size = len(inds)
+                        self.surveillance_done_today = True
                         if self.pars['surveillance_test_size'] is not None:
                             surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
-                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        self.tested_today_inds[selected_inds] = True
+                        self.viral_loads_severity = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        np.put(self.viral_loads, selected_inds, self.viral_loads_severity)
 
                     #testing parameters for random testing
-                    elif self.pars['enable_random_testing'] == True  and self.t % self.pars['random_test_frequency'] == 0 and self.random_test_start_date <= current_date <= self.random_test_end_date:
-                        inds = people.uid
+                    if self.pars['enable_random_testing'] == True  and self.t % self.pars['random_test_frequency'] == 0 and self.random_test_start_date <= current_date <= self.random_test_end_date:
+                        unsorted_inds = np.arange(self['pop_size'])
+                        unsorted_inds = unsorted_inds[~self.people.dead[unsorted_inds]]
+                        tested_today_inds = np.where(self.tested_today_inds == True)[0]
+                        inds = np.setdiff1d(unsorted_inds, np.concatenate([hospital_visit_inds, tested_today_inds]))
                         surveillance_test_size = len(inds)
+                        self.surveillance_done_today = True
                         if self.pars['surveillance_test_size'] is not None:
                             surveillance_test_size = min(surveillance_test_size, self.pars['surveillance_test_size'])
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
-                        self.viral_loads = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        self.tested_today_inds[selected_inds] = True
+                        self.viral_loads_random = np.array([people['viral_load'][0, i] for i in selected_inds])
+                        np.put(self.viral_loads, selected_inds, self.viral_loads_random)
 
                     #check detection
                     if self.first_detection_time is None and self.check_detection(self.viral_loads, self.surveillance_percentile_threshold, self.surveillance_viral_threshold):                        
-                        self.first_detection_time = self.t
+                        self.first_detection_time = self.t + 1
+                        self.confirmed_detection_time = self.surveillance_time_to_confirmation + self.first_detection_time
 
+       
         ##### CALCULATE STATISTICS #####
         for current_pathogen in range(len(self.pathogens)):
 
@@ -1350,10 +1402,10 @@ class Sim(cvb.BaseSim):
             self.finalize(verbose=verbose, restore_pars=restore_pars)
             sc.printv(f'Run finished after {elapsed:0.2f} s.\n', 1, verbose)
             if self.pars['enable_surveillance'] == True:
-                if self.first_detection_time is not None:
+                if self.confirmed_detection_time is not None:
                     start_day = self['start_day']
-                    detection_date = start_day + timedelta(days=self.first_detection_time)
-                    sc.printv(f'Pathogen first detected at {detection_date.strftime("%Y-%m-%d")}: on day {self.first_detection_time + 1} of the simulation.\n', 1, verbose)
+                    detection_date = start_day + timedelta(days=self.confirmed_detection_time)
+                    sc.printv(f'Pathogen of concern first detected at {detection_date.strftime("%Y-%m-%d")}: on day {self.confirmed_detection_time} of the simulation.\n', 1, verbose)
                 else:
                     sc.printv(f'Pathogen not detected.\n', 1, verbose)
         

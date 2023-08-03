@@ -140,8 +140,9 @@ def make_pars(version=None, **kwargs):
     pars['enable_surveillance'] = False
     pars['surveillance_test_size'] = None
     pars['surveillance_test_percent'] = None
-    pars['surveillance_viral_threshold'] = 5
+    pars['surveillance_viral_threshold'] = 7 #to be calibrated
     pars['surveillance_percentile_threshold'] = 25
+    pars['surveillance_time_to_confirmation'] = 2 #to be calibrated
 
     #contact-based surveillance
     pars['enable_contact_testing'] = False
@@ -156,6 +157,7 @@ def make_pars(version=None, **kwargs):
     pars['severity_test_frequency'] = 1
     pars['severity_test_start_date'] = None
     pars['severity_test_end_date'] = pars['end_day']
+    pars['severity_symp_prob_threshold'] = 0.8
 
     #age-based surveillance
     pars['enable_age_testing'] = False
@@ -173,8 +175,9 @@ def make_pars(version=None, **kwargs):
 
     #syndromic surveillance
     pars['enable_syndromic_testing'] = False
-    pars['hospital_capacity_percent'] = 0.005
-    pars['syndromic_test_percent'] = 0.1
+    pars['hospital_capacity_percent'] = 1
+    pars['syndromic_test_percent'] = 1 #to be calibrated_lowprio
+    pars['syndromic_days_to_test'] = 1
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)
