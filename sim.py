@@ -148,7 +148,7 @@ class Sim(cvb.BaseSim):
 
         #detection parameters
         self.surveillance_viral_threshold = self.pars['surveillance_viral_threshold']
-        self.surveillance_percentile_threshold = self.pars['surveillance_percentile_threshold']
+        self.surveillance_num_threshold = self.pars['surveillance_num_threshold']
 
         # Initialization code for early detection here
         self.first_detection_time = None
@@ -773,15 +773,14 @@ class Sim(cvb.BaseSim):
                     self.people.make_naive(new_naive_inds) # Make people naive again
         return
 
-    def check_detection(self, viral_loads, percent_threshold, viral_load_threshold):
+    def check_detection(self, viral_loads, num_threshold, viral_load_threshold):
         if len(self.viral_loads) == 0:
             return False
         tested_viral_loads = self.viral_loads[self.tested_today_inds]
         if len(tested_viral_loads) == 0:
             return False
         count = sum(1 for load in tested_viral_loads if load > viral_load_threshold)
-        percentage = count / len(tested_viral_loads) * 100
-        return percentage >= percent_threshold
+        return count >= num_threshold
 
 
     def step(self):  
@@ -987,7 +986,7 @@ class Sim(cvb.BaseSim):
                     hospital_visit_inds = np.array([])
                     
                     #set default syndromic surveillance params
-                    self.surveillance_time_to_confirmation = 7
+                    self.surveillance_time_to_confirmation = self.pars['syndromic_time_to_confirmation']
 
                     #this is the total number of hospital places available per time step
                     hospital_capacity = self.pars['hospital_capacity_percent'] * self['pop_size']
@@ -1001,15 +1000,15 @@ class Sim(cvb.BaseSim):
 
                     # Increase the probabilities for those with mild symptoms
                     symptomatic_indices = np.where(self.people.symptomatic == True)
-                    self.hospital_probabilities[symptomatic_indices] += 0.5
+                    self.hospital_probabilities[symptomatic_indices] += (0.5)
 
                     # Increase the probabilities for those with severe symptoms
                     severe_indices = np.where(self.people.severe == True)
-                    self.hospital_probabilities[severe_indices] += 0.25
+                    self.hospital_probabilities[severe_indices] += 0.0  
 
                     # Increase the probabilities for those with critical symptoms
                     critical_indices = np.where(self.people.critical == True)
-                    self.hospital_probabilities[critical_indices] += 0.25
+                    self.hospital_probabilities[critical_indices] += 0.0
 
                     # Set the probabilities to 0 for those who are dead
                     dead_indices = np.where(self.people.dead == True)
@@ -1036,6 +1035,7 @@ class Sim(cvb.BaseSim):
                     #testing parameters for syndromic surveillance
                     if self.pars['enable_syndromic_testing'] == True:
                         inds = hospitalized_for_x_days_inds
+                        #inds = hospital_visit_inds
                         surveillance_test_size = round(len(inds)*self.pars['syndromic_test_percent'])
                         self.surveillance_done_today = True
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
@@ -1112,7 +1112,7 @@ class Sim(cvb.BaseSim):
                         np.put(self.viral_loads, selected_inds, self.viral_loads_random)
 
                     #check detection
-                    if self.first_detection_time is None and self.check_detection(self.viral_loads, self.surveillance_percentile_threshold, self.surveillance_viral_threshold):                        
+                    if self.first_detection_time is None and self.check_detection(self.viral_loads, self.surveillance_num_threshold, self.surveillance_viral_threshold):                        
                         self.first_detection_time = self.t + 1
                         self.confirmed_detection_time = self.surveillance_time_to_confirmation + self.first_detection_time
 
