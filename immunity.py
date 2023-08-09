@@ -147,18 +147,19 @@ def validate_imm(i, pathogen, people, mini, maxi, rec_dead_date):
         assert abs(people.imm_level[pathogen, i] - maxi) < 0.01
          
 
-def update_IgG(people, pathogen):
+def update_IgG(people, pathogen, error_value):
     '''
     Step IgG levels forward in time 
     ''' 
     conversion_factor = 69.13 #slope
-    slope_adjustment = -268.62 
-    #error_range = (0.14, 2.42) From the upper and lower bounds of the trendline
-    error_range = (0.14, 0.42)
+    adjusted_slope = conversion_factor * error_value
+    x, y = 1, 90 #pivot point
+    y_int = y - x*adjusted_slope
     inds_alive = cvu.false(people.dead)
     inds_with_nabs = inds_alive[cvu.true(people.nab[pathogen, inds_alive])]
-    error_values = np.random.uniform(error_range[0], error_range[1], size=len(inds_with_nabs))
-    people['IgG_level'][inds_with_nabs] = people['nab'][0][inds_with_nabs] * conversion_factor * error_values - slope_adjustment
+    people['IgG_level'][inds_with_nabs] = (people['nab'][0][inds_with_nabs] * adjusted_slope) + y_int
+    #Should maybe consider not looking at negative options, also initial level IgG then convert? or just keep converting with
+
 
 
 def calc_VE(nab, ax, pars):

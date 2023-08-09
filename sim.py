@@ -565,7 +565,9 @@ class Sim(cvb.BaseSim):
         if self.pars['enable_smartwatches']:
             self.people.init_watches(self.pars['smartwatch_pars'])
              
-         
+        #Initialize IgG conversion error for the simulation
+        self.people.IgG_conversion_slope = self.people.init_IgG_conversion_slope()
+        #print(self.people.IgG_conversion_slope)
 
         return self
 
@@ -975,7 +977,7 @@ class Sim(cvb.BaseSim):
                 has_nabs = cvu.true(people.peak_nab[current_pathogen])
                 if len(has_nabs):
                     cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
-                cvimm.update_IgG(people, current_pathogen)
+                cvimm.update_IgG(people, current_pathogen, self.people.IgG_conversion_slope)
             else:
                 has_imm = np.where(people.imm_level[current_pathogen] > 0)
                 if len(has_imm):
@@ -1015,13 +1017,6 @@ class Sim(cvb.BaseSim):
                 self.results[current_pathogen]['pop_symp_protection'][t] = np.nanmean(people.symp_imm[current_pathogen]) 
             
             if self.pathogens[current_pathogen].use_nab_framework: #For IgG levels in population 
-                #TESTING
-                #print("Size of self.results[current_pathogen]['IgG_level']: ", len(self.results[current_pathogen]['IgG_level']))
-                #print("Value of t: ", t)
-                #print("Shape of people['IgG_level']: ", people['IgG_level'].shape)
-                #print("people['IgG_level']: ", people['IgG_level'])
-                # Verify the content of people['IgG_level']
-                
                 self.results[current_pathogen]['IgG_level'][t]       = np.array(people['IgG_level'])
 
 
@@ -1073,7 +1068,7 @@ class Sim(cvb.BaseSim):
             self.complete = True
 
         if self.t == 59: 
-            print(self.aps_program.results.get_results(31))
+            print(self.aps_program.results.plot_average_results_each_day())
             
             
 

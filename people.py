@@ -77,6 +77,9 @@ class People(cvb.BasePeople):
         self.infection_log = [] # Record of infections - keys for ['source','target','date','layer']
         self.sim = None
 
+        #For IgG conversion error
+        self.IgG_conversion_slope = 0
+
         variantNums = []
         for p in self.pars['pathogens']:
             variantNums.append(len(p.variants)+1)
@@ -106,7 +109,7 @@ class People(cvb.BasePeople):
         self.provides_sample_prob = np.zeros(self.pars['pop_size'], dtype=cvd.default_float) #Keeps track of population sampling 
         
         self.IgG_level = np.zeros(self.pars['pop_size'], dtype=cvd.default_float) #Tracks IgG levels used for populaiton active surveillance
-       
+
         # Set health states -- only susceptible is true by default -- booleans except exposed by variant which should return the variant that ind is exposed to   
         for key in self.meta.states:
             val = (key in ['susceptible', 'naive']) # Default value is True for susceptible and naive, False otherwise
@@ -220,6 +223,12 @@ class People(cvb.BasePeople):
         self.LEN_ALERT_HIST = 3
         self.alert_histories = np.zeros((len(self.uid), self.LEN_ALERT_HIST))
         return
+
+    def init_IgG_conversion_slope(self): 
+        '''
+        Select an error value for the simulation. 
+        '''
+        return np.random.uniform(0.14, 2.42) #values taken from the upper and lower bounds of the trendline from literature
 
 
     def init_flows(self):

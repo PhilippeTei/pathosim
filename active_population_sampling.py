@@ -107,7 +107,7 @@ class Sampler:
         
         self.assign_donation_probs() #assign provides_sample_prob
         
-    def define_cohort(people): 
+    def define_cohort(self, people): 
         '''
         Function to define a cohort as it's own sample frame to follow longitudinally. When called in assign_donation_probs it will 
         assign all agents not in the cohort to have a probability of 0 and those in the cohort to a probability fluctuating with a drop 
@@ -115,8 +115,29 @@ class Sampler:
 
         Could potentially take the same approach of using a sample frame (CanPath), or could choose a random cohort 
         '''
+        #find people in each age range of the sample frame 
+        age_array = np.round(self.people['age'])
+        interval_arrays = [[] for _ in self.sample_frame_pars['age_intervals']]
+        for i, interval in enumerate(self.sample_frame_pars['age_intervals']):
+            lower_bound, upper_bound = interval
+            mask = np.logical_and(lower_bound <= age_array, age_array <= upper_bound)
+            indices_of_people_in_interval = mask.nonzero()[0]
+            sex_array = self.people[indices_of_people_in_interval]['sex']
+            mask = (sex_array == 0)
+            indices_of_female_agents = mask.nonzero()[0]
+            indices_of_male_agents = (~mask).nonzero()[0]
+            #Find how many people you need to fill up in that age and sex bucket 
+            
 
-        pass
+
+            interval_arrays[i].extend(indices_of_people_in_interval)
+        
+            #FOR TESTING: 
+            #print(f"Indices in interval {self.sample_frame_pars['age_intervals'][i]}: {indices_of_people_in_interval}")
+
+
+
+        
     
 
     def assign_donation_probs(self): 
@@ -327,7 +348,73 @@ class Results():
             list: A list of tuples representing test results for the person, where each tuple is (day, test_result).
         """
         return self.test_results.get(person_index, [])
+    
+    def plot_individual_result(self, person_index):
+        """
+        Plot the test results for a specific person.
 
+        Args:
+            person_index (int): The index of the person.
+        """
+        results = self.get_results(person_index)
+        
+        if not results:
+            print("No results found for the specified person.")
+            return
+
+        days = [day for day, _ in results]
+        test_results = [test_result for _, test_result in results]
+        
+        plt.figure(figsize=(10, 6))
+        plt.plot(days, test_results, marker='o')
+        plt.title(f"Test Results for Person {person_index}")
+        plt.xlabel("Day")
+        plt.ylabel("Test Result")
+        plt.grid(True)
+        plt.show()
+
+    def plot_average_results_each_day(self):
+        """
+        Plot the average test results for each day.
+        """
+        if not self.test_results:
+            print("No test results found.")
+            return
+        
+        # Initialize a dictionary to store daily average results
+        daily_average_results = {}
+        
+        for person_results in self.test_results.values():
+            for day, test_result in person_results:
+                if day not in daily_average_results:
+                    daily_average_results[day] = []
+                daily_average_results[day].append(test_result)
+        
+        days = []
+        average_results = []
+        
+        for day, results_list in sorted(daily_average_results.items()):
+            days.append(day)
+            average_result = np.mean(results_list)
+            average_results.append(average_result)
+        
+        plt.figure(figsize=(10, 6))
+        plt.plot(days, average_results, marker='o')
+        plt.title("Average Test Results Each Day")
+        plt.xlabel("Day")
+        plt.ylabel("Average Test Result")
+        plt.grid(True)
+        plt.show()
+
+    def print_all_results(self):
+        """
+        Print all stored test results.
+        """
+        for person_index, results in self.test_results.items():
+            print(f"Person {person_index} results:")
+            for day, test_result in results:
+                print(f"Day {day}: {test_result}")
+            print()
 
 
 def plot_true_IgG_levels(sim, people, people_indices):
