@@ -154,11 +154,17 @@ class Sim(cvb.BaseSim):
         self.first_detection_time = None
         self.confirmed_detection_time = None
         self.viral_loads = np.zeros(self['pop_size'])
+        self.detection = np.full(self['pop_size'], False)
+        self.detection_dep = np.full(self['pop_size'], False)
+        self.test_results_today = np.full(self['pop_size'], False)
         self.surveillance_done_today = False #check if surveillance has been done today in general
         self.tested_today_inds = np.full(self['pop_size'], False) #list of indices of people who have been tested today
         self.days_in_hospital = np.zeros(self['pop_size'])
         self.days_to_test = self.pars['syndromic_days_to_test']
         self.surveillance_time_to_confirmation = self.pars['surveillance_time_to_confirmation']
+        self.total_runs = 0
+        self.cumulative_costs = []
+        self.total_costs = 0
 
         return
 
@@ -773,14 +779,8 @@ class Sim(cvb.BaseSim):
                     self.people.make_naive(new_naive_inds) # Make people naive again
         return
 
-    def check_detection(self, viral_loads, num_threshold, viral_load_threshold):
-        if len(self.viral_loads) == 0:
-            return False
-        tested_viral_loads = self.viral_loads[self.tested_today_inds]
-        if len(tested_viral_loads) == 0:
-            return False
-        count = sum(1 for load in tested_viral_loads if load > viral_load_threshold)
-        return count >= num_threshold
+    def check_detection(self, detection_array, num_threshold):
+        return np.sum(detection_array) >= num_threshold
 
 
     def step(self):  
@@ -980,6 +980,7 @@ class Sim(cvb.BaseSim):
                 #testing parameters for surveillance
                 if self.pars['enable_surveillance'] == True:
 
+
                     self.surveillance_done_today = False
                     self.tested_today_inds.fill(False)
 
@@ -998,17 +999,21 @@ class Sim(cvb.BaseSim):
                     susceptible_indices = np.where(self.people.susceptible == True)
                     self.hospital_probabilities[susceptible_indices] += 0.00
 
+                    # Increase the probabilities for those who are exposed
+                    exposed_indices = np.where(self.people.exposed == True)
+                    self.hospital_probabilities[exposed_indices] = 0.5
+
                     # Increase the probabilities for those with mild symptoms
                     symptomatic_indices = np.where(self.people.symptomatic == True)
-                    self.hospital_probabilities[symptomatic_indices] += (0.5)
+                    self.hospital_probabilities[symptomatic_indices] = 0.5
 
                     # Increase the probabilities for those with severe symptoms
                     severe_indices = np.where(self.people.severe == True)
-                    self.hospital_probabilities[severe_indices] += 0.0  
+                    self.hospital_probabilities[severe_indices] = 0.5
 
                     # Increase the probabilities for those with critical symptoms
                     critical_indices = np.where(self.people.critical == True)
-                    self.hospital_probabilities[critical_indices] += 0.0
+                    self.hospital_probabilities[critical_indices] = 0.5
 
                     # Set the probabilities to 0 for those who are dead
                     dead_indices = np.where(self.people.dead == True)
@@ -1032,13 +1037,17 @@ class Sim(cvb.BaseSim):
                     #get indices of those who have been in the hospital for x days
                     hospitalized_for_x_days_inds = np.where(self.days_in_hospital == self.days_to_test)[0]
 
+                    #initialise an array for the indices of all those tested today
+                    combined_inds = np.array([])
+
                     #testing parameters for syndromic surveillance
                     if self.pars['enable_syndromic_testing'] == True:
-                        inds = hospitalized_for_x_days_inds
-                        #inds = hospital_visit_inds
+                        #inds = hospitalized_for_x_days_inds
+                        inds = hospital_visit_inds
                         surveillance_test_size = round(len(inds)*self.pars['syndromic_test_percent'])
                         self.surveillance_done_today = True
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        combined_inds = np.concatenate((combined_inds, selected_inds))
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_syndromic = np.array([people['viral_load'][0, i] for i in selected_inds])
                         np.put(self.viral_loads, selected_inds, self.viral_loads_syndromic)                 
@@ -1056,6 +1065,7 @@ class Sim(cvb.BaseSim):
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        combined_inds = np.concatenate((combined_inds, selected_inds))
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_contact = np.array([people['viral_load'][0, i] for i in selected_inds])
                         np.put(self.viral_loads, selected_inds, self.viral_loads_contact)
@@ -1073,6 +1083,7 @@ class Sim(cvb.BaseSim):
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        combined_inds = np.concatenate((combined_inds, selected_inds))
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_age = np.array([people['viral_load'][0, i] for i in selected_inds])
                         np.put(self.viral_loads, selected_inds, self.viral_loads_age)
@@ -1090,6 +1101,7 @@ class Sim(cvb.BaseSim):
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        combined_inds = np.concatenate((combined_inds, selected_inds))
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_severity = np.array([people['viral_load'][0, i] for i in selected_inds])
                         np.put(self.viral_loads, selected_inds, self.viral_loads_severity)
@@ -1107,15 +1119,84 @@ class Sim(cvb.BaseSim):
                         elif self.pars['surveillance_test_percent'] is not None:
                             surveillance_test_size = min(surveillance_test_size, round(self.pars['surveillance_test_percent'] * len(inds)))
                         selected_inds = np.random.choice(inds, size=surveillance_test_size, replace=False)
+                        combined_inds = np.concatenate((combined_inds, selected_inds))
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_random = np.array([people['viral_load'][0, i] for i in selected_inds])
                         np.put(self.viral_loads, selected_inds, self.viral_loads_random)
 
-                    #check detection
-                    if self.first_detection_time is None and self.check_detection(self.viral_loads, self.surveillance_num_threshold, self.surveillance_viral_threshold):                        
-                        self.first_detection_time = self.t + 1
-                        self.confirmed_detection_time = self.surveillance_time_to_confirmation + self.first_detection_time
+                    #ensure combined inds are unique
+                    combined_inds = np.unique(combined_inds)
 
+                    #THIS SECTION IS THE VIRAL LOAD MODULE, CALIBRATED FROM SEQLOD DATA.
+
+                    # convert log viral loads to linear viral loads
+                    abs_viral_loads = 10 ** self.viral_loads
+                    #print(abs_viral_loads)
+
+                    #calculate total rna
+                    material_weight_ng = 100
+                    rna_bp_per_ng = 1771000000000
+
+                    total_rna_bp = material_weight_ng * rna_bp_per_ng
+                    #print(total_rna_bp)
+
+                    #calculate viral rna
+                    genome_size_bp = 30000
+                    viral_rna_bp = genome_size_bp * abs_viral_loads
+                    #print(viral_rna_bp)
+
+                    #calculate target reads
+                    target_fraction = viral_rna_bp / total_rna_bp
+                    #target_fraction = np.array([0.0000000001, 0.000000001, 0.00000001, 0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1])
+                    #print(target_fraction)
+
+                    read_count = 40000000
+
+                    #account for pooling
+                    if self.pars['pooling_enabled']:
+                        effective_read_count = read_count / self.pars['pool_size']
+                    else:
+                        effective_read_count = read_count
+
+                    target_reads = target_fraction * effective_read_count
+                    #print(target_reads)
+
+                    #accounting for rna depletion
+                    rrna_fraction = 0.6
+                    target_fraction_dep = target_fraction*(1/(1-((1-target_fraction)*rrna_fraction)))
+                    target_reads_dep = target_fraction_dep * effective_read_count
+
+                    #modify target reads to account for sensitivity
+                    sensitivity = 0.9
+                    target_reads = target_reads * sensitivity
+                    target_reads_dep = target_reads_dep * sensitivity
+
+                    ##check detection
+                    self.detection = target_reads > 1
+                    self.detection_dep = target_reads_dep > 1
+
+                    if self.pars['rna_depletion_enabled']:
+                        detection_array = self.detection_dep
+                    else:
+                        detection_array = self.detection
+
+                    #calculate costs
+                    runs_at_t = len(combined_inds)
+                    cost_per_run = 1000
+
+                    if self.pars['pooling_enabled']:
+                        runs_at_t = math.ceil(runs_at_t / self.pars['pool_size'])  # Using ceil to make sure if there's any remainder, you account for an additional test due to pooling.
+                    
+                    cost_at_t = runs_at_t * cost_per_run
+
+                    self.total_runs += runs_at_t
+                    self.total_costs += cost_at_t
+                    self.cumulative_costs.append(self.total_costs)
+
+                    #check detection
+                    if self.first_detection_time is None and self.check_detection(detection_array, self.surveillance_num_threshold):                        
+                        self.first_detection_time = self.t + 1
+                        self.confirmed_detection_time = self.surveillance_time_to_confirmation + self.first_detection_time    
        
         ##### CALCULATE STATISTICS #####
         for current_pathogen in range(len(self.pathogens)):

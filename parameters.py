@@ -175,10 +175,15 @@ def make_pars(version=None, **kwargs):
 
     #syndromic surveillance
     pars['enable_syndromic_testing'] = False
-    pars['hospital_capacity_percent'] = 0.0024
+    pars['hospital_capacity_percent'] = 1
     pars['syndromic_test_percent'] = 0.25*0.3 #to be calibrated_lowprio
     pars['syndromic_days_to_test'] = 0
     pars['syndromic_time_to_confirmation'] = 0
+
+    #metagenomics parameters
+    pars['rna_depletion_enabled'] = False
+    pars['pooling_enabled'] = False
+    pars['pool_size'] = 1
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)
