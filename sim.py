@@ -9,6 +9,7 @@ from pickle import NONE
 import numpy as np
 import pandas as pd
 import sciris as sc
+import math #(CK_SV)
 from . import utils as cvu
 from . import misc as cvm
 from . import base as cvb
@@ -131,37 +132,45 @@ class Sim(cvb.BaseSim):
         if self.pars['enable_stratifications']:  
             self.stratification_indices = None
             self.stratification_pars = self.pars['stratification_pars']
-       
-        #also ensures that if no start date is specified for both the test and simulation, the test will run from day 0
-        self.start_date = sc.date(self['start_day'])
-        self.contact_test_start_date = sc.date(self.pars['contact_test_start_date']) if self.pars['contact_test_start_date'] is not None else self.start_date
-        self.age_test_start_date = sc.date(self.pars['age_test_start_date']) if self.pars['age_test_start_date'] is not None else self.start_date
-        self.severity_test_start_date = sc.date(self.pars['severity_test_start_date']) if self.pars['severity_test_start_date'] is not None else self.start_date
-        self.random_test_start_date = sc.date(self.pars['random_test_start_date']) if self.pars['random_test_start_date'] is not None else self.start_date
+
+        #INITIALIZATION OF PARAMETERS FOR SURVEILLANCE ARCHITECTURE (CK_SV)      
+
+        #initialising  start dates for surveillance
+        self.start_date = sc.date(self['start_day']) #convert start date to date object so that tests can be scheduled between specified dates
+        self.contact_test_start_date = sc.date(self.pars['contact_test_start_date']) if self.pars['contact_test_start_date'] is not None else self.start_date #start date for contact testing. If not specified, defaults to start date of simulation
+        self.age_test_start_date = sc.date(self.pars['age_test_start_date']) if self.pars['age_test_start_date'] is not None else self.start_date #start date for age testing. If not specified, defaults to start date of simulation
+        self.severity_test_start_date = sc.date(self.pars['severity_test_start_date']) if self.pars['severity_test_start_date'] is not None else self.start_date #start date for severity testing. If not specified, defaults to start date of simulation
+        self.random_test_start_date = sc.date(self.pars['random_test_start_date']) if self.pars['random_test_start_date'] is not None else self.start_date #start date for random testing. If not specified, defaults to start date of simulation
         
-        #also ensures that if no end date is specified for both the test and simulation, the test will run for the remainder of the entire simulation
-        self.end_date = sc.date(self['end_day'])
-        self.contact_test_end_date = sc.date(self.pars['contact_test_end_date'])
-        self.age_test_end_date = sc.date(self.pars['age_test_end_date'])
-        self.severity_test_end_date = sc.date(self.pars['severity_test_end_date'])
-        self.random_test_end_date = sc.date(self.pars['random_test_end_date'])
+        #initialising end dates for surveillance
+        self.end_date = sc.date(self['end_day']) #convert end date to date object so that tests can be scheduled between specified dates
+        self.contact_test_end_date = sc.date(self.pars['contact_test_end_date']) #end date for contact testing. If not specified, defaults to end date of simulation
+        self.age_test_end_date = sc.date(self.pars['age_test_end_date']) #end date for age testing. If not specified, defaults to end date of simulation
+        self.severity_test_end_date = sc.date(self.pars['severity_test_end_date']) #end date for severity testing. If not specified, defaults to end date of simulation
+        self.random_test_end_date = sc.date(self.pars['random_test_end_date']) #end date for random testing. If not specified, defaults to end date of simulation
 
-        #detection parameters
-        self.surveillance_viral_threshold = self.pars['surveillance_viral_threshold']
-        self.surveillance_num_threshold = self.pars['surveillance_num_threshold']
+        #initialising the parameters for the detection procedure
+        self.surveillance_viral_threshold = self.pars['surveillance_viral_threshold'] #viral load threshold for detection
+        self.surveillance_num_threshold = self.pars['surveillance_num_threshold'] #number of tests threshold for detection (i.e. how many people need to be tested positive for the detection to be triggered)
 
-        # Initialization code for early detection here
-        self.first_detection_time = None
-        self.confirmed_detection_time = None
-        self.viral_loads = np.zeros(self['pop_size'])
-        self.detection = np.full(self['pop_size'], False)
-        self.detection_dep = np.full(self['pop_size'], False)
-        self.test_results_today = np.full(self['pop_size'], False)
+        #initialising the parameters for the testing procedure
+
+        #general testing parameters
+        self.first_detection_time = None #time of first detection
+        self.confirmed_detection_time = None #time of confirmed detection, i.e. when the detection is confirmed by some arbitrary procedure to account for manual confirmation in practice.
+        self.viral_loads = np.zeros(self['pop_size']) #viral loads of the population collected through testing
+        self.detection = np.full(self['pop_size'], False) #for each person, whether they have been detected or not
+        self.detection_dep = np.full(self['pop_size'], False) #for each person, whether they have been detected or not, taking into account RNA depletion
+        self.test_results_today = np.full(self['pop_size'], False) #for each person, whether they have been tested today or not
         self.surveillance_done_today = False #check if surveillance has been done today in general
         self.tested_today_inds = np.full(self['pop_size'], False) #list of indices of people who have been tested today
-        self.days_in_hospital = np.zeros(self['pop_size'])
-        self.days_to_test = self.pars['syndromic_days_to_test']
-        self.surveillance_time_to_confirmation = self.pars['surveillance_time_to_confirmation']
+        
+        #syndromic testing parameters
+        self.days_in_hospital = np.zeros(self['pop_size']) #for each person, how many days they have been in hospital
+        self.days_to_test = self.pars['syndromic_days_to_test'] #how many days after being in the hospital to test
+        self.surveillance_time_to_confirmation = self.pars['surveillance_time_to_confirmation'] #how many days after detection to confirm the detection
+        
+        #tracking the number of sequencing runs and total costs
         self.total_runs = 0
         self.cumulative_costs = []
         self.total_costs = 0
@@ -906,7 +915,9 @@ class Sim(cvb.BaseSim):
         if self['enable_behaviour']:
             people.schedule_behaviour(self['behaviour_pars'])
             
-        # Initialize the array to hold the sum of counts for all variants
+        #THE FOLLOWING INCLUDES UPDATES IN ORDER TO TRACK CONTACT COUNTS (CK_SV)
+
+        # Initialize the array to hold the sum of contact counts for all variants (CK_SV)
         p1p2pathogen_counts = np.zeros(self['pop_size'])
 
         for current_pathogen in range(len(self.pathogens)): 
@@ -937,7 +948,7 @@ class Sim(cvb.BaseSim):
 
                 beta = cvd.default_float(self.pathogens[current_pathogen].beta * rel_beta)
 
-                # Initialize the 'contact parameter' for each agent in the population as an array
+                # Initialize the 'contact parameter' for each agent in the population as an array (CK_SV)
                 p1p2var_counts = np.zeros(self['pop_size'])
                 
                 for lkey, layer in contacts.items():
@@ -962,32 +973,36 @@ class Sim(cvb.BaseSim):
                         source_inds, target_inds = cvu.compute_infections(beta, p1, p2, betas, rel_trans, rel_sus, legacy=self._legacy_trans)  # Calculate transmission! 
                         people.infect(inds=target_inds, hosp_max=hosp_max, icu_max=icu_max, source=source_inds, layer=lkey, variant=variant, pathogen_index = current_pathogen)  # Actually infect people
 
-                    #calculate the 'contact parameter' for each agent in the population as an array
+                    #calculate the 'contact parameter' for each agent in the population as an array (CK_SV)
                     for i in range(len(p1)):
                         p1p2var_counts[p1[i]] += 1
                         p1p2var_counts[p2[i]] += 1
 
-                    # Add the counts for this variant to the total counts for all variants
+                    # Add the counts for this variant to the total counts for all variants (CK_SV)
                     p1p2pathogen_counts += p1p2var_counts
-                    
-                p1p2pathogen_avg = p1p2pathogen_counts / nv
-                self.contact_parameters += np.round((p1p2pathogen_avg/2))
-                contact_percentiles = np.array([percentileofscore(self.contact_parameters, a, 'rank') for a in self.contact_parameters]) 
+
+                # Calculate the average 'contact parameter' for each agent in the population as an array (CK_SV)
+                p1p2pathogen_avg = p1p2pathogen_counts / nv #average contact parameter for each agent in the population
+                self.contact_parameters += np.round((p1p2pathogen_avg/2)) #diving by 2 because each contact is counted twice
+                contact_percentiles = np.array([percentileofscore(self.contact_parameters, a, 'rank') for a in self.contact_parameters]) #percentile of each agent's contact parameter in the population
                 
-                #all of the below converts date strings to datetime objects so functions can be performed on them
+                #THE BULK OF THE SURVEILLANCE ARCHITECTURE (CK_SV)
+
+                #set current_date to be the current day of the simulation
                 current_date = sc.date(self.current_day)
 
                 #testing parameters for surveillance
                 if self.pars['enable_surveillance'] == True:
 
-
-                    self.surveillance_done_today = False
-                    self.tested_today_inds.fill(False)
-
-                    hospital_visit_inds = np.array([])
+                    #set the surveillance parameters for the current day
+                    self.surveillance_done_today = False #set to false at the beginning of each day
+                    self.tested_today_inds.fill(False) #set to false at the beginning of each day
+                    hospital_visit_inds = np.array([]) #assume no one has visited the hospital yet today
                     
-                    #set default syndromic surveillance params
-                    self.surveillance_time_to_confirmation = self.pars['syndromic_time_to_confirmation']
+                    #set the time to confirmation for syndromic surveillance
+                    self.surveillance_time_to_confirmation = self.pars['syndromic_time_to_confirmation'] #time to confirmation for syndromic surveillance is specidied by the parameter
+
+                    #calculate who seeks going to the hospital today
 
                     #this is the total number of hospital places available per time step
                     hospital_capacity = self.pars['hospital_capacity_percent'] * self['pop_size']
@@ -1040,9 +1055,21 @@ class Sim(cvb.BaseSim):
                     #initialise an array for the indices of all those tested today
                     combined_inds = np.array([])
 
+                    #initialise an array for the indices of those who are to be tested today for syndromic surveillance, so we can separate syndromic and other pipelines (allowing them to be run in parallel)
+                    syndromic_inds = np.array([]) 
+
+                    #The structure of the surveillance architecture for all types is generally as follows:
+                        #1. The code is only triggered the surveillance type is enabled, today lies within the dates specified, and in accordance with the surveillance frequency.
+                        #2. Get the indices of the people who are to be tested today in accordance with the specified method, filtering out those who are dead and have already been tested.
+                        #3. Note that surveillance has occured today (for future tracking purposes) #TODO:  track the exact days surveillance occured
+                        #4. Specify the surveillance test size. These are usually input parameters that default to the population to be tested if not specified.
+                        #5. Randomly select the indices of the people to be tested today from the pool of people who are to be tested today, capped at the surveillance test size. Note that they have been tested today.
+                        #6. Return the viral loads of the people who have been tested today, and update the viral loads of the people who have been tested today to be the viral loads of the people who have been tested today.
+                        #7. Repeat for each surveillance type.
+
                     #testing parameters for syndromic surveillance
                     if self.pars['enable_syndromic_testing'] == True:
-                        #inds = hospitalized_for_x_days_inds
+                        #inds = hospitalized_for_x_days_inds #detection procedure where only those who have been in the hospital for x days are tested
                         inds = hospital_visit_inds
                         surveillance_test_size = round(len(inds)*self.pars['syndromic_test_percent'])
                         self.surveillance_done_today = True
@@ -1050,7 +1077,8 @@ class Sim(cvb.BaseSim):
                         combined_inds = np.concatenate((combined_inds, selected_inds))
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_syndromic = np.array([people['viral_load'][0, i] for i in selected_inds])
-                        np.put(self.viral_loads, selected_inds, self.viral_loads_syndromic)                 
+                        np.put(self.viral_loads, selected_inds, self.viral_loads_syndromic)
+                        syndromic_inds = selected_inds #separately stored given syndromic samples are never pooled                 
 
                     #testing parameters for contact-based testing
                     if self.pars['enable_contact_testing'] == True and self.t % self.pars['contact_test_frequency'] == 0 and self.contact_test_start_date <= current_date <= self.contact_test_end_date:
@@ -1127,44 +1155,36 @@ class Sim(cvb.BaseSim):
                     #ensure combined inds are unique
                     combined_inds = np.unique(combined_inds)
 
-                    #THIS SECTION IS THE VIRAL LOAD MODULE, CALIBRATED FROM SEQLOD DATA.
+                    #THIS SECTION IS THE VIRAL LOAD MODULE. THE PARAMETERISATION IS BASED ON CALIBRATED FROM SEQLOD DATA (CK_SV).
 
                     # convert log viral loads to linear viral loads
                     abs_viral_loads = 10 ** self.viral_loads
-                    #print(abs_viral_loads)
 
                     #calculate total rna
-                    material_weight_ng = 100
-                    rna_bp_per_ng = 1771000000000
-
-                    total_rna_bp = material_weight_ng * rna_bp_per_ng
-                    #print(total_rna_bp)
-
+                    material_weight_ng = 100 #weight of material in ng
+                    rna_bp_per_ng = 1771000000000 #number of bp per ng of rna
+                    total_rna_bp = material_weight_ng * rna_bp_per_ng #total number of bp in sample
+                    
                     #calculate viral rna
-                    genome_size_bp = 30000
-                    viral_rna_bp = genome_size_bp * abs_viral_loads
-                    #print(viral_rna_bp)
+                    genome_size_bp = 30000 #size of genome in bp
+                    viral_rna_bp = genome_size_bp * abs_viral_loads #number of bp of viral rna in sample
 
                     #calculate target reads
-                    target_fraction = viral_rna_bp / total_rna_bp
-                    #target_fraction = np.array([0.0000000001, 0.000000001, 0.00000001, 0.0000001, 0.000001, 0.00001, 0.0001, 0.001, 0.01, 0.1])
-                    #print(target_fraction)
+                    target_fraction = viral_rna_bp / total_rna_bp #fraction of reads that are viral
+                    read_count = 10000000 #number of reads a sequencer can generate per sample
+                    read_count_array = np.full(len(target_fraction), read_count) #array of read counts for each sample
 
-                    read_count = 40000000
-
-                    #account for pooling
+                    #account for pooling: I proxy this by dividing the read count by the pool size
                     if self.pars['pooling_enabled']:
-                        effective_read_count = read_count / self.pars['pool_size']
-                    else:
-                        effective_read_count = read_count
+                        non_syndromic_inds = np.setdiff1d(np.arange(len(self.viral_loads)), syndromic_inds)
+                        read_count_array[non_syndromic_inds] /= self.pars['pool_size']
 
-                    target_reads = target_fraction * effective_read_count
-                    #print(target_reads)
+                    target_reads = target_fraction * read_count_array #number of reads that are viral
 
                     #accounting for rna depletion
-                    rrna_fraction = 0.6
+                    rrna_fraction = 0.6 #fraction of sample rna that is rrna
                     target_fraction_dep = target_fraction*(1/(1-((1-target_fraction)*rrna_fraction)))
-                    target_reads_dep = target_fraction_dep * effective_read_count
+                    target_reads_dep = target_fraction_dep * read_count_array #number of reads that are viral. accounting for rna depletion
 
                     #modify target reads to account for sensitivity
                     sensitivity = 0.9
@@ -1180,18 +1200,18 @@ class Sim(cvb.BaseSim):
                     else:
                         detection_array = self.detection
 
-                    #calculate costs
-                    runs_at_t = len(combined_inds)
+                    #calculate the total cost of testing
+                    runs_at_t = len(combined_inds) #assumes the number of runs is equal to the number of people tested per timestep.
                     cost_per_run = 1000
 
                     if self.pars['pooling_enabled']:
-                        runs_at_t = math.ceil(runs_at_t / self.pars['pool_size'])  # Using ceil to make sure if there's any remainder, you account for an additional test due to pooling.
+                        runs_at_t = math.ceil(runs_at_t / self.pars['pool_size'])  # Account for pooling by assuming n-sampled pooled means total samples taken is divied by n. Using ceil to make sure if there's any remainder, you account for an additional test due to pooling.
                     
                     cost_at_t = runs_at_t * cost_per_run
 
-                    self.total_runs += runs_at_t
-                    self.total_costs += cost_at_t
-                    self.cumulative_costs.append(self.total_costs)
+                    self.total_runs += runs_at_t #maintain a count of the total number of runs
+                    self.total_costs += cost_at_t #maintain a count of the total cost of testing
+                    self.cumulative_costs.append(self.total_costs) #track the cumulative cost of testing
 
                     #check detection
                     if self.first_detection_time is None and self.check_detection(detection_array, self.surveillance_num_threshold):                        
@@ -1368,6 +1388,8 @@ class Sim(cvb.BaseSim):
             if len(self.pars['testing']) == 0: 
                 print("Warning: Test objects enabled but no test object parameters, or already-built test objects, were supplied")
 
+#BREAKING UP THE RUN FUNCTION INTO SMALLER FUNCTIONS FOR ANALYSIS PURPOSE (CK_SV)
+
     def pre_run(self, until=None, verbose=None, reset_seed=True):
                 # Initialization steps -- start the timer, initialize the sim and the seed, and check that the sim hasn't been run
         T = sc.timer() 
@@ -1425,6 +1447,7 @@ class Sim(cvb.BaseSim):
 
         return self
 
+    #run as generator allows me to return the simulation object after each step of the simulation. Useful for analysis (CK_SV)
     def run_as_generator(self, do_plot=False, until=None, restore_pars=True, reset_seed=True, verbose=None):
         '''
         Run the simulation.
@@ -1478,7 +1501,7 @@ class Sim(cvb.BaseSim):
         return elapsed
 
     def run_complete(self, elapsed, restore_pars=True, verbose=None):
-            # If simulation reached the end, finalize the results
+        # If simulation reached the end, finalize the results. Includes changes to return information about pathogen detection (CK_SV)
         if self.complete:
             self.finalize(verbose=verbose, restore_pars=restore_pars)
             sc.printv(f'Run finished after {elapsed:0.2f} s.\n', 1, verbose)
