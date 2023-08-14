@@ -136,7 +136,7 @@ def make_pars(version=None, **kwargs):
     pars['vaccine_pars'] = {} # Vaccines that are being used; populated during initialization
     pars['vaccine_map']  = {} #Reverse mapping from number to vaccine key 
 
-    #NEW PARAMETERS FOR SURVEILLANCE ARCHITECTURE
+    #NEW PARAMETERS FOR SURVEILLANCE ARCHITECTURE (CK_SV)
 
     # Surveilance parameters
     pars['enable_surveillance'] = False

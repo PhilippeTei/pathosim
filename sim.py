@@ -1202,7 +1202,7 @@ class Sim(cvb.BaseSim):
 
                     #calculate the total cost of testing
                     runs_at_t = len(combined_inds) #assumes the number of runs is equal to the number of people tested per timestep.
-                    cost_per_run = 1000
+                    cost_per_run = 1000 #TODO: make this a parameter(?) or better fit to data
 
                     if self.pars['pooling_enabled']:
                         runs_at_t = math.ceil(runs_at_t / self.pars['pool_size'])  # Account for pooling by assuming n-sampled pooled means total samples taken is divied by n. Using ceil to make sure if there's any remainder, you account for an additional test due to pooling.
