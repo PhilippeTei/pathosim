@@ -182,7 +182,7 @@ def make_pars(version=None, **kwargs):
     pars['syndromic_days_to_test'] = 0
     pars['syndromic_time_to_confirmation'] = 0
 
-    #metagenomics parameters
+    #metagenomics parameters, note that pooling never applies to syndromic testing
     pars['rna_depletion_enabled'] = False
     pars['pooling_enabled'] = False
     pars['pool_size'] = 1
