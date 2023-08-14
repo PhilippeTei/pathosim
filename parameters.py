@@ -139,53 +139,57 @@ def make_pars(version=None, **kwargs):
     #NEW PARAMETERS FOR SURVEILLANCE ARCHITECTURE (CK_SV)
 
     # Surveilance parameters
-    pars['enable_surveillance'] = False
-    pars['surveillance_test_size'] = None
-    pars['surveillance_test_percent'] = None
-    pars['surveillance_viral_threshold'] = 10 #to be calibrated
-    pars['surveillance_num_threshold'] = 1
-    pars['surveillance_time_to_confirmation'] = 0 #to be calibrated
+    pars['enable_surveillance'] = False #enable any surveillance
+    pars['surveillance_test_size'] = None #number of tests per day
+    pars['surveillance_test_percent'] = None #percentage of population to test per day
+    pars['surveillance_num_threshold'] = 1 #number of positive tests to trigger a detection
+    pars['surveillance_time_to_confirmation'] = 0 #time to confirm a positive test, arbitrarily set
 
     #contact-based surveillance
-    pars['enable_contact_testing'] = False
-    pars['contact_percentile_lower'] = 75
-    pars['contact_percentile_upper'] = 100
-    pars['contact_test_frequency'] = 1
-    pars['contact_test_start_date'] = None
-    pars['contact_test_end_date'] = pars['end_day']
+    pars['enable_contact_testing'] = False #enable contact-based surveillance
+    pars['contact_percentile_lower'] = 75 #the lower percentile of contacts to test
+    pars['contact_percentile_upper'] = 100 #the upper percentile of contacts to test
+    pars['contact_test_frequency'] = 1 #frequency of testing
+    pars['contact_test_start_date'] = None #start date of testing
+    pars['contact_test_end_date'] = pars['end_day'] #end date of testing
     
     #severity-based surveillance
-    pars['enable_severity_testing'] = False
-    pars['severity_test_frequency'] = 1
-    pars['severity_test_start_date'] = None
-    pars['severity_test_end_date'] = pars['end_day']
-    pars['severity_symp_prob_threshold'] = 0.8
+    pars['enable_severity_testing'] = False #enable severity-based surveillance
+    pars['severity_test_frequency'] = 1 #frequency of testing
+    pars['severity_test_start_date'] = None #start date of testing
+    pars['severity_test_end_date'] = pars['end_day'] #end date of testing
+    pars['severity_symp_prob_threshold'] = 0.8 #threshold of symptomatic probability to trigger a test
 
     #age-based surveillance
-    pars['enable_age_testing'] = False
-    pars['surveillance_age_lower'] = 0
-    pars['surveillance_age_upper'] = 100
-    pars['age_test_frequency'] = 1
-    pars['age_test_start_date'] = None
-    pars['age_test_end_date'] = pars['end_day']
+    pars['enable_age_testing'] = False #enable age-based surveillance
+    pars['surveillance_age_lower'] = 0 #lower age bound
+    pars['surveillance_age_upper'] = 100 #upper age bound
+    pars['age_test_frequency'] = 1 #frequency of testing
+    pars['age_test_start_date'] = None #start date of testing
+    pars['age_test_end_date'] = pars['end_day'] #end date of testing
 
     #random testing
-    pars['enable_random_testing'] = False
-    pars['random_test_frequency'] = 1
-    pars['random_test_start_date'] = None
-    pars['random_test_end_date'] = pars['end_day']
+    pars['enable_random_testing'] = False #enable random testing
+    pars['random_test_frequency'] = 1 #frequency of testing
+    pars['random_test_start_date'] = None #start date of testing
+    pars['random_test_end_date'] = pars['end_day'] #end date of testing
 
     #syndromic surveillance
-    pars['enable_syndromic_testing'] = False
-    pars['hospital_capacity_percent'] = 1
-    pars['syndromic_test_percent'] = 0.25*0.3 #to be calibrated_lowprio
-    pars['syndromic_days_to_test'] = 0
-    pars['syndromic_time_to_confirmation'] = 0
+    pars['enable_syndromic_testing'] = False #enable syndromic surveillance
+    pars['hospital_capacity_percent'] = 1 #percentage of hospital capacity to trigger syndromic surveillance
+    pars['syndromic_test_percent'] = 0.25*0.3 #percentage of population to test per day. currently set to replicate threatnet (25% of hospital visits, 30% of hospitals)
+    pars['syndromic_days_to_test'] = 0 #number of days in hospital before testing
+    pars['syndromic_time_to_confirmation'] = 0 #time to confirm a positive test, arbitrarily set
 
     #metagenomics parameters, note that pooling never applies to syndromic testing
-    pars['rna_depletion_enabled'] = False
-    pars['pooling_enabled'] = False
-    pars['pool_size'] = 1
+    pars['rna_depletion_enabled'] = False #enable rna depletion
+    pars['pooling_enabled'] = False #enable pooling
+    pars['syndromic_pooling_enabled'] = False #enable pooling for syndromic testing
+    pars['pool_size'] = 1 #pool size
+    pars['syndromic_pool_size'] = 1 #pool size for syndromic testing
+
+    #cost effectiveness calculation
+    pars['cost_per_run'] = 2300 #TODO: figure out how to get this number
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)

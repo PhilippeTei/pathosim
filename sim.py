@@ -150,7 +150,6 @@ class Sim(cvb.BaseSim):
         self.random_test_end_date = sc.date(self.pars['random_test_end_date']) #end date for random testing. If not specified, defaults to end date of simulation
 
         #initialising the parameters for the detection procedure
-        self.surveillance_viral_threshold = self.pars['surveillance_viral_threshold'] #viral load threshold for detection
         self.surveillance_num_threshold = self.pars['surveillance_num_threshold'] #number of tests threshold for detection (i.e. how many people need to be tested positive for the detection to be triggered)
 
         #initialising the parameters for the testing procedure
@@ -1078,7 +1077,7 @@ class Sim(cvb.BaseSim):
                         self.tested_today_inds[selected_inds] = True
                         self.viral_loads_syndromic = np.array([people['viral_load'][0, i] for i in selected_inds])
                         np.put(self.viral_loads, selected_inds, self.viral_loads_syndromic)
-                        syndromic_inds = selected_inds #separately stored given syndromic samples are never pooled                 
+                        syndromic_inds = selected_inds #separately stored given syndromic samples are pooled separately                
 
                     #testing parameters for contact-based testing
                     if self.pars['enable_contact_testing'] == True and self.t % self.pars['contact_test_frequency'] == 0 and self.contact_test_start_date <= current_date <= self.contact_test_end_date:
@@ -1179,6 +1178,9 @@ class Sim(cvb.BaseSim):
                         non_syndromic_inds = np.setdiff1d(np.arange(len(self.viral_loads)), syndromic_inds)
                         read_count_array[non_syndromic_inds] /= self.pars['pool_size']
 
+                    if self.pars['syndromic_pooling_enabled']:
+                        read_count_array[syndromic_inds] /= self.pars['syndromic_pool_size']
+
                     target_reads = target_fraction * read_count_array #number of reads that are viral
 
                     #accounting for rna depletion
@@ -1207,7 +1209,7 @@ class Sim(cvb.BaseSim):
                     if self.pars['pooling_enabled']:
                         runs_at_t = math.ceil(runs_at_t / self.pars['pool_size'])  # Account for pooling by assuming n-sampled pooled means total samples taken is divied by n. Using ceil to make sure if there's any remainder, you account for an additional test due to pooling.
                     
-                    cost_at_t = runs_at_t * cost_per_run
+                    cost_at_t = runs_at_t * self.pars['cost_per_run']
 
                     self.total_runs += runs_at_t #maintain a count of the total number of runs
                     self.total_costs += cost_at_t #maintain a count of the total cost of testing
