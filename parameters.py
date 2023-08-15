@@ -181,15 +181,15 @@ def make_pars(version=None, **kwargs):
     pars['syndromic_days_to_test'] = 0 #number of days in hospital before testing
     pars['syndromic_time_to_confirmation'] = 0 #time to confirm a positive test, arbitrarily set
 
-    #metagenomics parameters, note that pooling never applies to syndromic testing
+    #metagenomics parameters.
     pars['rna_depletion_enabled'] = False #enable rna depletion
     pars['pooling_enabled'] = False #enable pooling
     pars['syndromic_pooling_enabled'] = False #enable pooling for syndromic testing
-    pars['pool_size'] = 1 #pool size
-    pars['syndromic_pool_size'] = 1 #pool size for syndromic testing
+    pars['pool_size'] = 5 #pool size
+    pars['syndromic_pool_size'] = 5 #pool size for syndromic testing
 
     #cost effectiveness calculation
-    pars['cost_per_run'] = 2300 #TODO: figure out how to get this number
+    pars['cost_per_run'] = 1500
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)

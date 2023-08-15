@@ -1178,6 +1178,8 @@ class Sim(cvb.BaseSim):
                         non_syndromic_inds = np.setdiff1d(np.arange(len(self.viral_loads)), syndromic_inds)
                         read_count_array[non_syndromic_inds] /= self.pars['pool_size']
 
+                    read_count_array = read_count_array.astype(np.float64)
+
                     if self.pars['syndromic_pooling_enabled']:
                         read_count_array[syndromic_inds] /= self.pars['syndromic_pool_size']
 
@@ -1203,13 +1205,26 @@ class Sim(cvb.BaseSim):
                         detection_array = self.detection
 
                     #calculate the total cost of testing
-                    runs_at_t = len(combined_inds) #assumes the number of runs is equal to the number of people tested per timestep.
-                    cost_per_run = 1000 #TODO: make this a parameter(?) or better fit to data
+                    runs_at_t = 0 #assumes the number of runs is equal to the number of people tested per timestep.
+                    cost_per_run = self.pars['cost_per_run'] #all-in variable costs of a run
 
+                    non_syndromic_inds = np.setdiff1d(combined_inds, syndromic_inds)
+
+                    runs_at_t = 0
+
+                    # Handling for non-syndromic samples
                     if self.pars['pooling_enabled']:
-                        runs_at_t = math.ceil(runs_at_t / self.pars['pool_size'])  # Account for pooling by assuming n-sampled pooled means total samples taken is divied by n. Using ceil to make sure if there's any remainder, you account for an additional test due to pooling.
+                        runs_at_t += math.ceil(len(non_syndromic_inds) / self.pars['pool_size'])  # Pooling for non-syndromic samples
+                    else:
+                        runs_at_t += len(non_syndromic_inds)  # Each non-syndromic sample is a unique run
+
+                    # Handling for syndromic samples
+                    if self.pars['syndromic_pooling_enabled']:
+                        runs_at_t += math.ceil(len(syndromic_inds) / self.pars['syndromic_pool_size'])  # Pooling for syndromic samples
+                    else:
+                        runs_at_t += len(syndromic_inds)  # Each syndromic sample is a unique run
                     
-                    cost_at_t = runs_at_t * self.pars['cost_per_run']
+                    cost_at_t = runs_at_t * cost_per_run #total cost of testing at time t
 
                     self.total_runs += runs_at_t #maintain a count of the total number of runs
                     self.total_costs += cost_at_t #maintain a count of the total cost of testing
