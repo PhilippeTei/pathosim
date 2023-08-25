@@ -187,9 +187,13 @@ def make_pars(version=None, **kwargs):
     pars['syndromic_pooling_enabled'] = False #enable pooling for syndromic testing
     pars['pool_size'] = 5 #pool size
     pars['syndromic_pool_size'] = 5 #pool size for syndromic testing
+    pars['read_count'] = 10000000 #number of reads per sample
+    
+    #sequening parameters
+
 
     #cost effectiveness calculation
-    pars['cost_per_run'] = 1500
+    pars['cost_per_run'] = 1500 * 1.56 #1.56 is an arbitrary scaling factor to account for discrepancy, I hope to remove it
 
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)

@@ -583,10 +583,10 @@ class Sim(cvb.BaseSim):
         if self.pars['enable_smartwatches']:
             self.people.init_watches(self.pars['smartwatch_pars'])
              
-        #This is an array of how much contact each agent has had cumulatively at each time step
+        #This is an array of how much contact each agent has had cumulatively at each time step #CK_SV
         self.contact_parameters = np.zeros(self['pop_size']) 
 
-        #this is an array of the probability of each agent attending a clinic at each time step
+        #this is an array of the probability of each agent attending a clinic at each time step #CK_SV
         self.clinic_probabilities = np.zeros(self['pop_size'])
 
         return self
@@ -950,6 +950,8 @@ class Sim(cvb.BaseSim):
                 # Initialize the 'contact parameter' for each agent in the population as an array (CK_SV)
                 p1p2var_counts = np.zeros(self['pop_size'])
                 
+                #TODO: Amend the error where this is iterated over contact layers! CK_SV
+
                 for lkey, layer in contacts.items():
                     p1 = layer['p1']
                     p2 = layer['p2']
@@ -1170,19 +1172,20 @@ class Sim(cvb.BaseSim):
 
                     #calculate target reads
                     target_fraction = viral_rna_bp / total_rna_bp #fraction of reads that are viral
-                    read_count = 10000000 #number of reads a sequencer can generate per sample
+                    read_count = self.pars['read_count'] #number of reads a sequencer can generate per sample
                     read_count_array = np.full(len(target_fraction), read_count) #array of read counts for each sample
+                    read_count_array = read_count_array.astype(np.float64)
 
                     #account for pooling: I proxy this by dividing the read count by the pool size
                     if self.pars['pooling_enabled']:
                         non_syndromic_inds = np.setdiff1d(np.arange(len(self.viral_loads)), syndromic_inds)
                         read_count_array[non_syndromic_inds] /= self.pars['pool_size']
 
-                    read_count_array = read_count_array.astype(np.float64)
 
                     if self.pars['syndromic_pooling_enabled']:
                         read_count_array[syndromic_inds] /= self.pars['syndromic_pool_size']
-
+                    
+                    
                     target_reads = target_fraction * read_count_array #number of reads that are viral
 
                     #accounting for rna depletion
