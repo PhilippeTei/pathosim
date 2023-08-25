@@ -1,0 +1,28 @@
+Simulation_Setup,Mean_Detection,Mean_Costs,Cost Estimate,Mean_Runs
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_1,55.55,236340," $14,022,840.00 ",101
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_7,75.43333333,35100," $2,082,600.00 ",15
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_14,75.42105263,18720," $1,110,720.00 ",8
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_28,79.90909091,9360," $555,360.00 ",4
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_1,30.19565217,2449792.8," $145,354,372.80 ",1046.92
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_7,50.77777778,367520.4," $21,806,210.40 ",157.06
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_14,63.33333333,193986," $11,509,836.00 ",82.9
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_28,62.76470588,97718.4," $5,797,958.40 ",41.76
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_1,12.2,24342505.2," $1,444,321,975.20 ",10402.78
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_7,27.36170213,3601634.4," $213,696,974.40 ",1539.16
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_14,33.55,1921982.4," $114,037,622.40 ",821.36
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_28,43.97674419,963846," $57,188,196.00 ",411.9
+,,,,
+,,,,
+Sample Size,Test Frequency,Mean Detection Day,,
+0.02% of Population,1,56,,
+0.02% of Population,7,75,,
+0.02% of Population,14,75,,
+0.02% of Population,28,80,,
+0.2% of Population,1,30,,
+0.2% of Population,7,51,,
+0.2% of Population,14,63,,
+0.2% of Population,28,63,,
+2% of Population,1,12,,
+2% of Population,7,27,,
+2% of Population,14,34,,
+2% of Population,28,44,,

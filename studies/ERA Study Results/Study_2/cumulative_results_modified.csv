@@ -1,0 +1,36 @@
+Simulation_Setup,Additional Contacts,Mean Detection Day,,Mean_Costs,Mean_Runs,
+Contact_Testing_Contact_Lower_Percentile_0_Additional_Contacts_0,Top 100%,68.78947368,12.13947368,175500,75,57.90823799
+Contact_Testing_Contact_Lower_Percentile_25_Additional_Contacts_0,Top 75%,53.04347826,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_50_AAdditional_Contacts_0,Top 50%,53.15,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_75_Additional_Contacts_0,Top 25%,56.65,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_0_Additional_Contacts_5,Top 100%,53.81818182,-1.431818182,175500,75,56.76704545
+Contact_Testing_Contact_Lower_Percentile_25_Additional_Contacts_5,Top 75%,61.66666667,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_50_Additional_Contacts_5,Top 50%,56.33333333,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_75_Additional_Contacts_5,Top 25%,55.25,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_0_Additional_Contacts_10,Top 100%,49.66666667,-0.333333333,175500,75,49.76388889
+Contact_Testing_Contact_Lower_Percentile_25_Additional_Contacts_10,Top 75%,51.33333333,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_50_Additional_Contacts_10,Top 50%,48.05555556,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_75_Additional_Contacts_10,Top 25%,50,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_0_Additional_Contacts_15,Top 100%,46.18181818,3.181818182,175500,75,44.90563241
+Contact_Testing_Contact_Lower_Percentile_25_Additional_Contacts_15,Top 75%,47.13636364,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_50_Additional_Contacts_15,Top 50%,43.30434783,,175500,75,
+Contact_Testing_Contact_Lower_Percentile_75_Additional_Contacts_15,Top 25%,43,,175500,75,
+Age_Testing_Age_Lower_Age_0,Top 100%,63.63157895,5.076023392,175500,75,58.05994152
+Age_Testing_Age_Lower_Age_25,Top 75%,47.05263158,,175500,75,
+Age_Testing_Age_Lower_Age_50,Top 50%,63,,175500,75,
+Age_Testing_Age_Lower_Age_75,Top 25%,58.55555556,,175500,75,
+Severity_Testing_Severity_Symp_Prob_0,Top 100%,61.9,4.9,175500,75,60.94722222
+Severity_Testing_Severity_Symp_Prob_0.25,Top 75%,64,,175500,75,
+Severity_Testing_Severity_Symp_Prob_0.5,Top 50%,60.88888889,,175500,75,
+Severity_Testing_Severity_Symp_Prob_0.75,Top 25%,57,,175500,75,
+,,,,,,
+,,,,,,
+Mean (No Strat),,64.77368421,,,,
+Mean (Contact),,,,,,
+,,,,,,
+62.76578947,,,,,,
+55.52631579,,Age-Based,Severity-Based,,,
+61.94444444,Top 100%,63.63157895,61.9,,,
+57.77777778,Top 75%,47.05263158,64,,,
+,Top 50%,63,60.88888889,,,
+,Top 25%,58.55555556,57,,,

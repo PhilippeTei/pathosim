@@ -1,0 +1,35 @@
+import optuna
+import numpy as np
+import behaviour as bh
+import pathosim as inf 
+import pandas as pd
+import os
+
+# Load your empirical data
+empirical_df = pd.read_csv("C:\Simdata\ThreatNet_Test_Data.csv")
+empirical_data = empirical_df['infections_column'].values
+
+
+pars = dict(
+    pop_size=5000,
+    pop_type='random',
+    n_days=100,
+    start_day='2020-01-30',
+    enable_surveillance=False,
+    enable_syndromic_testing=False,
+)
+
+results_list = []
+for i in range(10):
+    Coronavirus = inf.SARS_COV_2(1)
+    Coronavirus.configure_transmission(beta=0.01)
+    sim = inf.Sim(pars=pars, pathogens=[Coronavirus], verbose=1, rand_seed=i)
+    sim.run()
+    results_list.append(sim.results[0]['cum_infections'].values)
+
+results_array = np.array(results_list)
+mean_results = np.mean(results_array, axis=0)
+
+# Compute the mean squared error (MSE) between the empirical and simulated data
+error = np.mean((mean_results - empirical_data) ** 2)
+print(error)

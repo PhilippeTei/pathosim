@@ -1,0 +1,13 @@
+Simulation_Setup,Mean_Detection,Mean_Costs,Mean_Runs
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_1,55.55,236340.0,101.0
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_7,75.43333333333334,35100.0,15.0
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_14,75.42105263157895,18720.0,8.0
+Random_Test_Sample_Size_0.0002_Random_Test_Frequency_28,79.9090909090909,9360.0,4.0
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_1,30.195652173913043,2449792.8,1046.92
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_7,50.77777777777778,367520.4,157.06
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_14,63.333333333333336,193986.0,82.9
+Random_Test_Sample_Size_0.002_Random_Test_Frequency_28,62.76470588235294,97718.4,41.76
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_1,12.2,24342505.2,10402.78
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_7,27.361702127659573,3601634.4,1539.16
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_14,33.55,1921982.4,821.36
+Random_Test_Sample_Size_0.02_Random_Test_Frequency_28,43.97674418604651,963846.0,411.9
