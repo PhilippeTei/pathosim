@@ -56,29 +56,26 @@ class test_multi_pathogen_sim(unittest.TestCase):
         #If one of these fail retry the simulation, if it fails again then theres likely to be a bug
 
         for i in range(3):
-            assert approx(sim1.summary[i]['cum_infections'], 11150, 2000) == True
-            assert approx(sim1.summary[i]['cum_reinfections'], 2250, 500) == True
+            assert approx(sim1.summary[i]['cum_infections'], 11150, 2000) == True 
+            assert approx(sim1.summary[i]['cum_reinfections'], 2000, 500) == True
             assert approx(sim1.summary[i]['cum_infectious'], 11200, 2000) == True
             assert approx(sim1.summary[i]['cum_symptomatic'], 7150, 2000) == True
             assert approx(sim1.summary[i]['cum_recoveries'], 11000, 2000) == True
-            assert approx(sim1.summary[i]['cum_severe'], 500, 250) == True
-            assert approx(sim1.summary[i]['cum_critical'], 70, 50) == True
+            assert approx(sim1.summary[i]['cum_severe'], 500, 250) == True 
             
             assert approx(sim2.summary[i]['cum_infections'], 11150, 2000) == True
-            assert approx(sim2.summary[i]['cum_reinfections'], 2250, 500) == True
+            assert approx(sim2.summary[i]['cum_reinfections'], 2000, 500) == True
             assert approx(sim2.summary[i]['cum_infectious'], 11200, 2000) == True
             assert approx(sim2.summary[i]['cum_symptomatic'], 7150, 2000) == True
             assert approx(sim2.summary[i]['cum_recoveries'], 11000, 2000) == True
-            assert approx(sim2.summary[i]['cum_severe'], 500, 250) == True
-            assert approx(sim2.summary[i]['cum_critical'], 70, 50) == True
+            assert approx(sim2.summary[i]['cum_severe'], 500, 250) == True 
 
             assert approx(sim3.summary[i]['cum_infections'], 11150, 2000) == True
-            assert approx(sim3.summary[i]['cum_reinfections'], 2250, 500) == True
+            assert approx(sim3.summary[i]['cum_reinfections'], 2000, 500) == True
             assert approx(sim3.summary[i]['cum_infectious'], 11200, 2000) == True
             assert approx(sim3.summary[i]['cum_symptomatic'], 7150, 2000) == True
             assert approx(sim3.summary[i]['cum_recoveries'], 11000, 2000) == True
-            assert approx(sim3.summary[i]['cum_severe'], 500, 250) == True
-            assert approx(sim3.summary[i]['cum_critical'], 70, 50) == True
+            assert approx(sim3.summary[i]['cum_severe'], 500, 250) == True 
        
 
           

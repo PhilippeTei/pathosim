@@ -814,8 +814,7 @@ class Sim(cvb.BaseSim):
             for variant in self.pathogens[current_pathogen].variants:
                 if isinstance(variant, pat.Pathogen.Variant):
                     variant.apply(self) 
-                    
-        
+                     
         # Sent smartwatch alerts and update alert histories
         if self.pars['enable_smartwatches']:
             self.people.watches.send_alerts_baseline(self)

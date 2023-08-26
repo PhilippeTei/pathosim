@@ -7,7 +7,7 @@ the transitions between states (e.g., from susceptible to infected).
 from array import array
 from heapq import merge
 import numpy as np
-import scipy.stats as stats
+import scipy.stats as stats 
 import sciris as sc
 import scipy.stats as stats
 from collections import defaultdict
@@ -932,16 +932,15 @@ class People(cvb.BasePeople):
         self.sim.results['co-infections'][self.t] = len(indices_use_alpha) 
         self.is_coinfected[indices_use_alpha] = True
 
-        '''
+        
         for i in range(self.pars['n_pathogens']): 
             if i != pathogen_index: 
                 for j in range(self.sim.pathogens[i].n_variants):
                     indices_with_variant = self.p_exposed_by_variant[i,j].nonzero()[0]  
                     indices_with_variant = np.intersect1d(indices_with_variant, inds)
-                    for ind in indices_with_variant:
-                        self.recalculate_disease_trajectory(ind, i, j, Msev_by_ind, Mdur_by_ind, pathogen_index)'''
-
- 
+                    for ind in indices_with_variant: 
+                        self.recalculate_disease_trajectory(ind, i, j, Msev_by_ind, Mdur_by_ind, pathogen_index)
+                        
         # Deal with variant parameters
         variant_keys = ['rel_symp_prob', 'rel_severe_prob', 'rel_crit_prob', 'rel_death_prob']
         infect_pars = {
@@ -1173,6 +1172,7 @@ class People(cvb.BasePeople):
      
     def recalculate_disease_trajectory(self, index, pathogen_index, variant, Msev_by_ind, Mdur_by_ind, pathogen_coinfecting):
     
+        #self.print_disease_trajectory(index, pathogen_index)
         #print(self.t - self.date_p_exposed[pathogen_index, index])
         #self.print_disease_trajectory(index, pathogen_index)
         #identify which states are in the past
@@ -1202,27 +1202,23 @@ class People(cvb.BasePeople):
             
             if self.t + lbd*(self.date_p_infectious[pathogen_index, index] - self.t) <= self.date_p_infectious[pathogen_index, index]: 
                 self.dur_exp2inf[pathogen_index, index] = self.t - self.date_p_exposed[pathogen_index, index]
-                self.date_p_exposed[pathogen_index,index] = self.t+1
+                self.date_p_infectious[pathogen_index,index] = self.t+1
             else:
                 self.dur_exp2inf[pathogen_index, index] = (self.t - self.date_p_exposed[pathogen_index, index]) + lbd*(self.date_p_infectious[pathogen_index, index]-self.t)
                 self.date_p_infectious[pathogen_index, index] = self.date_p_exposed[pathogen_index, index] +  self.dur_exp2inf[pathogen_index, index]
          
          
-        #Scale symp_probs based on co-infection 
+        #Scale symp_probs based on co-infection  
+        is_symp = False
+        if np.isnan(self.date_p_symptomatic[pathogen_index, index]) or (self.date_p_symptomatic[pathogen_index, index] > self.t):
+             
+            symp_prob_mult = pint.get_disease_traj_alpha(self.abs_symp_prob[pathogen_index,index], self.abs_symp_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
+           
+            symp_probs = infect_pars['rel_symp_prob']*self.symp_prob[pathogen_index,index]*(0.9)*symp_prob_mult #placeholder 0.9 to assume very low symp_imm protection originally
+            symp_probs = symp_probs if symp_probs <=1 else 1
 
-        is_symp = not np.isnan(self.date_p_symptomatic[pathogen_index, index])
-        if (not is_symp) or (self.date_p_symptomatic[pathogen_index, index] > self.t): #If state was orinally not supposed to be entered or the state's date is in the future
-            
-            if (Msev_by_ind[index] >= 1 and not is_symp) or (Msev_by_ind[index] <= 1 and (not np.isnan(self.date_p_symptomatic[pathogen_index, index]))): 
-                symp_prob_mult = pint.get_disease_traj_alpha(self.abs_symp_prob[pathogen_index,index], self.abs_symp_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
-              
-                symp_probs = infect_pars['rel_symp_prob']*self.symp_prob[pathogen_index,index]*(0.9)*symp_prob_mult #placeholder 0.9 to assume very low symp_imm protection originally
-                symp_probs = symp_probs if symp_probs <=1 else 1
-
-                prev = is_symp
-                is_symp = len(cvu.binomial_arr([symp_probs])!= 0) # Determine if they develop symptoms
-                if is_symp and not prev:
-                    self.flows_variant[pathogen_index]['new_symptomatic_by_variant'][variant] += len(strat.get_indices_to_track(self.sim, [index]))
+            prev = is_symp
+            is_symp = cvu.binomial_arr([symp_probs])[0] == True # Determine if they develop symptoms 
 
         if not is_symp:
             # CASE 1: Asymptomatic: may infect others, but have no symptoms and do not die 
@@ -1258,15 +1254,15 @@ class People(cvb.BasePeople):
                           
             #Scale symp_probs based on co-infection 
 
-            is_sev = not np.isnan(self.date_p_severe[pathogen_index, index])
+            is_sev = False
             prev_is_sev = is_sev
-            if (not is_sev) or (self.date_p_severe[pathogen_index, index] > self.t):
-
-                if (Msev_by_ind[index] >= 1 and not is_sev) or (Msev_by_ind[index] <= 1 and is_sev):
-                    sev_prob_mult = pint.get_disease_traj_alpha(self.abs_severe_prob[pathogen_index,index], self.abs_severe_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
-                    sev_probs = infect_pars['rel_severe_prob'] * self.severe_prob[pathogen_index, index]*(1-self.sev_imm[pathogen_index, variant, index]) * sev_prob_mult # Probability of these people being severe
-                    sev_probs = sev_probs if sev_probs < 1 else 1 
-                    is_sev = len(cvu.binomial_arr([sev_probs])) != 0 # See if they're a severe or mild case
+            if (self.date_p_severe[pathogen_index, index] > self.t) or np.isnan(self.date_p_severe[pathogen_index, index]):
+                 
+                sev_prob_mult = pint.get_disease_traj_alpha(self.abs_severe_prob[pathogen_index,index], self.abs_severe_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
+                 
+                sev_probs = infect_pars['rel_severe_prob'] * self.severe_prob[pathogen_index, index]*(1-self.sev_imm[pathogen_index, variant, index]) * sev_prob_mult # Probability of these people being severe
+                sev_probs = sev_probs if sev_probs < 1 else 1 
+                is_sev = cvu.binomial_arr([sev_probs])[0] == True # See if they're a severe or mild case
 
            
             if not is_sev:
@@ -1304,16 +1300,15 @@ class People(cvb.BasePeople):
                             self.date_p_severe[pathogen_index, index] = self.date_p_symptomatic[pathogen_index, index] +  self.dur_sym2sev[pathogen_index, index]
                              
                              
-                is_crit = not np.isnan(self.date_p_critical[pathogen_index, index])
+                is_crit = False
 
-                if (not is_crit) or (self.date_p_critical[pathogen_index, index] > self.t):  
-                    if (Msev_by_ind[index] >= 1 and not is_crit) or (Msev_by_ind[index] <= 1 and is_crit): 
-                        crit_prob_mult = pint.get_disease_traj_alpha(self.abs_crit_prob[pathogen_index,index], self.abs_crit_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
+                if np.isnan(self.date_p_critical[pathogen_index, index]) or (self.date_p_critical[pathogen_index, index] > self.t):   
+                    crit_prob_mult = pint.get_disease_traj_alpha(self.abs_crit_prob[pathogen_index,index], self.abs_crit_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
              
-                        crit_probs = infect_pars['rel_crit_prob'] * self.crit_prob[pathogen_index, index] * crit_prob_mult # TODO change symp_immm
-                        crit_probs = crit_probs if crit_probs <=1 else 1
+                    crit_probs = infect_pars['rel_crit_prob'] * self.crit_prob[pathogen_index, index] * crit_prob_mult # TODO change symp_immm
+                    crit_probs = crit_probs if crit_probs <=1 else 1
 
-                        is_crit = len(cvu.binomial_arr([crit_probs])!= 0) # Determine if they develop symptoms 
+                    is_crit = cvu.binomial_arr([crit_probs])[0] == True # Determine if they develop symptoms 
                    
                 if not is_crit:
                       
@@ -1345,16 +1340,15 @@ class People(cvb.BasePeople):
                                 self.date_p_critical[pathogen_index, index] = self.date_p_severe[pathogen_index, index] +  self.dur_sev2crit[pathogen_index, index]
                           
                     # CASE 2.2.2: Critical cases: ICU required, may die 
-                    is_dead = not np.isnan(self.date_p_dead[pathogen_index, index])
+                    is_dead = False
 
-                    if (not is_dead) or (self.date_p_dead[pathogen_index, index] > self.t):  
-                        if (Msev_by_ind[index] >= 1 and not is_dead) or (Msev_by_ind[index] <= 1 and is_dead): 
-                            dead_prob_mult = pint.get_disease_traj_alpha(self.abs_death_prob[pathogen_index,index], self.abs_death_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
-             
-                            death_probs = infect_pars['rel_death_prob'] * self.death_prob[pathogen_index, index] * dead_prob_mult  
-                            death_probs = death_probs if death_probs <=1 else 1
+                    if np.isnan(self.date_p_dead[pathogen_index, index]) or (self.date_p_dead[pathogen_index, index] > self.t):   
+                        dead_prob_mult = pint.get_disease_traj_alpha(self.abs_death_prob[pathogen_index,index], self.abs_death_prob[pathogen_coinfecting,index], Msev_by_ind[index]) 
+                        
+                        death_probs = infect_pars['rel_death_prob'] * self.death_prob[pathogen_index, index] * dead_prob_mult  
+                        death_probs = death_probs if death_probs <=1 else 1
 
-                            is_dead = len(cvu.binomial_arr([death_probs])!= 0) # Determine if they develop symptoms 
+                        is_dead = cvu.binomial_arr([death_probs])[0] == True # Determine if they develop symptoms 
                       
                     if not is_dead:
                              
@@ -1385,7 +1379,7 @@ class People(cvb.BasePeople):
         #self.print_disease_trajectory(index, pathogen_index)
         
         # HANDLE VIRAL LOAD CONTROL POINTS
-       
+        '''
         # Get P_inf: where viral load crosses 10^6 cp/mL
         self.x_p_inf[pathogen_index,index] = self.dur_exp2inf[pathogen_index, index]
         self.y_p_inf[pathogen_index,index] = 6
@@ -1402,18 +1396,18 @@ class People(cvb.BasePeople):
         self.x_p1[pathogen_index,index] = self.x_p1[pathogen_index,index] + self.t
         self.x_p_inf[pathogen_index,index] = self.x_p_inf[pathogen_index,index] + self.t
         self.x_p2[pathogen_index,index] = self.x_p2[pathogen_index,index] + self.t
-
+        
         # Get P3: where viral load drops below 10^6 cp/mL
         time_recovered = self.date_p_recovered[pathogen_index, index]# This is needed to make a copy
         is_dead = np.isnan(self.date_p_dead[pathogen_index, index])
         if is_dead:
             time_recovered= self.date_p_dead[pathogen_index,index]
         self.x_p3[pathogen_index,index] = np.maximum(time_recovered, self.x_p2[pathogen_index,index])
-        self.y_p3[pathogen_index,index] = 6
+        self.y_p3[pathogen_index,index] = 6'''
         return
 
     def print_disease_trajectory(self, i, p):
-        print("-> DISEASE TRAJECTORY FOR PERSON ", i, "PATHOGEN", self.sim.pathogens[p].label)
+        print("-> DISEASE TRAJECTORY FOR PERSON ", i, "PATHOGEN", self.sim.pathogens[p].label, "DATE", self.t)
         print("exposed", self.date_p_exposed[p, i])
         print("infectious", self.date_p_infectious[p, i]) 
         print("symptomatic", self.date_p_symptomatic[p, i]) 

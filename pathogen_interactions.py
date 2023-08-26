@@ -1,5 +1,5 @@
 import numpy as np
-
+import math
 
 def mod_rel_trans(current_pathogen, p_exposed, n_pathogens, rel_trans, Mtrans):  
     '''
@@ -49,11 +49,21 @@ def mod_rel_sus(current_pathogen, rel_sus, p_exposed, Miimm, Mcimm, people_sus_i
     rel_sus *= sus_iimm * sus_cimm
     return rel_sus
 
-def get_disease_traj_alpha(pi, pj, Msev):
-    pi_pj = pi+pj
-    nom1 = pi_pj +  np.sqrt((pi_pj)*(pi_pj) - 4*(pi*pj)*(Msev*pi))
-    nom2 = pi_pj - np.sqrt((pi_pj)*(pi_pj) - 4*(pi*pj)*(Msev*pi))
-    denom = 2*pi*pj
-    result1 = nom1/denom
-    result2 = nom2/denom
-    return min(result1, result2)
+def get_disease_traj_alpha(pi, pj, Msev): 
+    p_s_pi = pi
+    p_s_pj = pj
+    Msev_ij = Msev
+
+    p_s_pi_pj = 1 - ((1-p_s_pi)*(1-p_s_pj)) 
+
+    beta = Msev_ij*p_s_pi_pj
+    beta = beta if beta <= 1 else 1
+
+    alpha1 = ((p_s_pi+p_s_pj) + np.sqrt( (p_s_pi+p_s_pj)**2 - 4*p_s_pi*p_s_pj*beta ))/(2*p_s_pi*p_s_pj) 
+    alpha2 = ((p_s_pi+p_s_pj) - np.sqrt( (p_s_pi+p_s_pj)**2 - 4*p_s_pi*p_s_pj*beta ))/(2*p_s_pi*p_s_pj) 
+     
+    res =  min(alpha1, alpha2) 
+    return res
+
+
+ 

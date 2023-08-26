@@ -6,7 +6,7 @@ import numpy as np
 sum_co_inf = 0
 sum_cum_deaths = 0
 sum_cum_rec = 0
-sims = 1
+sims = 20
 
 cum_inf_deadly = 0
 cum_inf_covid = 0
@@ -18,10 +18,8 @@ for i in range(sims):
          
     #PATHOGEN 1: SARS-COV-2
     #covid = inf.SARS_COV_2(20)  
-    covid = inf.SARS_COV_2(500)  
-    covid3 = inf.SARS_COV_2(500)  
-           
-
+    covid = inf.SARS_COV_2(500)   
+            
     #PATHOGEN 2: A HIGH DEATH RATE PATHOGEN
     path2 = inf.Pathogen(400, "DeadlyPathogen") #You can use Pathogen as the starting base pathogen, or any pre-programmed pathogen such as SARS-CoV-2, and then modify its parameters
     path2.beta = 0.005
@@ -52,45 +50,46 @@ for i in range(sims):
                 [0,1]] 
 
 
-    Msev = [[1,0],  
-            [0,1]]
+    Msev = [[1,2],  
+            [2,1]]
 
-    Mdur = [[1,1],
-            [1,1]]
+    Mdur = [[1,.5],
+            [.5,1]]
  
-    sim = inf.Sim(pop_size=pop_size, n_days=n_days, pathogens = [covid, path2,covid3], rand_seed = i)  
-    sim.run()
-  
-    cum_inf_deadly += (sim.results[1]['cum_infections'][n_days]) 
-    cum_inf_covid += (sim.results[0]['cum_infections'][n_days]) 
+    sim = inf.Sim(pop_size=pop_size, n_days=n_days, pathogens = [covid, path2], rand_seed = i, Msev = Msev, Mdur = Mdur)  
+    sim.run()  
     sum_cum_deaths += (sim.results['cum_deaths'][n_days]) 
     sum_cum_rec += (sim.results[0]['cum_recoveries'][n_days]) 
-    sum_co_inf += (sum(sim.results['co-infections'])) 
-    cum_coinf_ded +=(sum(sim.results['co-infected_deaths']))  
+    sum_co_inf += (sum(sim.results['co-infections']))  
 
 print('cumulative co-infections', sum_co_inf/sims)   
 print('cumulative deaths', sum_cum_deaths/sims) 
-print('cumulative recoveries',sum_cum_rec/sims)    
-print('cumulative infections deadly ',cum_inf_deadly/sims)    
-print('cumulative infections covid',cum_inf_covid/sims)    
-print('cumulative coinfection deaths',cum_coinf_ded/sims)    
+print('cumulative recoveries',sum_cum_rec/sims)     
 
-#print(sim.results[0]['new_infections']) 
-#print(sim.results[1]['new_infections']) 
-#print(sim.results.keys())
-
-#WITH RECALCULATION DISEASE TRAJ
-''' 
-''' 
-
-#WITHOUT RECALCULTATIO DISEASE TRAJ
+#RESULTS
 '''
-MSev = 100:
-cumulative co-infections 1304.0
-cumulative deaths 1652.0
-cumulative recoveries 43567.0
-cumulative infections deadly  9414.0
-cumulative infections covid 44413.0
-cumulative coinfection deaths 456.0
+Msev = 0.5
+cumulative co-infections 763.85
+cumulative deaths 654.75
+cumulative recoveries 43980.9 
 
+Msev = 1
+cumulative co-infections 877.05
+cumulative deaths 874.5
+cumulative recoveries 43858.05 
+
+Msev = 2
+cumulative co-infections 931.4
+cumulative deaths 1130.15
+cumulative recoveries 43917.7 
+
+Msev = 2, Mdur = 2
+cumulative co-infections 1061.95
+cumulative deaths 1195.15
+cumulative recoveries 43778.8 
+
+Msev = 2, Mdur = 0.5
+cumulative co-infections 596.0
+cumulative deaths 870.6
+cumulative recoveries 43694.3
 '''
