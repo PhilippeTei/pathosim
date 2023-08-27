@@ -75,14 +75,14 @@ class Sampler:
         if study_design_pars['design_type'] == 'longitudinal': #need sampling interval and dropout rate
             self.sampling_interval = study_design_pars['sampling_interval'] #shoud this be kept in a dictionary rather than two seperate attributes 
             self.dropout_rate = study_design_pars['dropout_rate']
-            self.num_participants = study_design_pars['num_participants'] #initial number of participants to follow 
+            #self.num_participants = study_design_pars['num_participants'] #initial number of participants to follow 
 
             if self.sampling_interval is None:
                 raise ValueError("'sampling_interval' parameter is missing for 'longitudinal' design.")
             if self.dropout_rate is None:
                 raise ValueError("'dropout_rate' parameter is missing for 'longitudinal' design.")
-            if self.num_participants <= 0: 
-                raise ValueError("'num_participants' parameter is invalid for 'longitudinal' design")
+            #if self.num_participants <= 0: 
+                #raise ValueError("'num_participants' parameter is invalid for 'longitudinal' design")
 
         elif study_design_pars['design_type'] == 'cross_sectional': #need sampling periods and num people per period
             self.sampling_periods = study_design_pars['sampling_periods']
@@ -107,7 +107,7 @@ class Sampler:
         
         self.assign_donation_probs() #assign provides_sample_prob
         
-    def define_cohort(self, people): 
+    def define_cohort(self): 
         '''
         Function to define a cohort as it's own sample frame to follow longitudinally. When called in assign_donation_probs it will 
         assign all agents not in the cohort to have a probability of 0 and those in the cohort to a probability fluctuating with a drop 
@@ -115,30 +115,56 @@ class Sampler:
 
         Could potentially take the same approach of using a sample frame (CanPath), or could choose a random cohort 
         '''
-        #find people in each age range of the sample frame 
+        sim_cohort_size = ((self.sample_frame_pars['cohort_size'] * self.people.pars['pop_size'])) // self.sample_frame_pars['actual_pop_size']
+
+        #Set up 
         age_array = np.round(self.people['age'])
-        interval_arrays = [[] for _ in self.sample_frame_pars['age_intervals']]
+        p_male = self.sample_frame_pars['sex_breakdown']['male']
+        p_female = self.sample_frame_pars['sex_breakdown']['female']
+        
+        # Initialize lists to store chosen indices
+        chosen_indices_male_list = []
+        chosen_indices_female_list = []
+
         for i, interval in enumerate(self.sample_frame_pars['age_intervals']):
+            # Determine number of people to choose in each age range
+            p_age = self.sample_frame_pars['donor_breakdown_per_interval'][i]
             lower_bound, upper_bound = interval
-            mask = np.logical_and(lower_bound <= age_array, age_array <= upper_bound)
-            indices_of_people_in_interval = mask.nonzero()[0]
-            sex_array = self.people[indices_of_people_in_interval]['sex']
-            mask = (sex_array == 0)
-            indices_of_female_agents = mask.nonzero()[0]
-            indices_of_male_agents = (~mask).nonzero()[0]
-            #Find how many people you need to fill up in that age and sex bucket 
+            age_mask = np.logical_and(lower_bound <= age_array, age_array <= upper_bound)
+            indices_of_people_in_interval = age_mask.nonzero()[0]
+            sex_array = self.people['sex'][indices_of_people_in_interval]
+            sex_mask = (sex_array == 0)
+            indices_of_female_agents = sex_mask.nonzero()[0]
+            indices_of_male_agents = (~sex_mask).nonzero()[0]
             
+            #Find how many people you need to fill up in that age and sex bucket 
+            num_males = round(p_male * p_age * sim_cohort_size)
+            num_females = round(p_female * p_age * sim_cohort_size)
+
+            #Randomly choose these agents from each of the buckets 
+            # Append chosen indices to respective lists
+
+            if len(indices_of_male_agents) <= num_males: 
+                chosen_indices_male = indices_of_male_agents
+                chosen_indices_male_list.extend(chosen_indices_male)
+            else:
+                chosen_indices_male = np.random.choice(indices_of_male_agents, size=num_males, replace=False)
+                chosen_indices_male_list.extend(chosen_indices_male)
+            
+            if len(indices_of_female_agents) <= num_females:
+                chosen_indices_female = indices_of_female_agents
+                chosen_indices_female_list.extend(chosen_indices_female)
+            
+            else: 
+                chosen_indices_female = np.random.choice(indices_of_female_agents, size=num_females, replace=False)
+                chosen_indices_female_list.extend(chosen_indices_female)
+             
+        # Concatenate the lists to obtain a single list of chosen indices
+        all_chosen_indices = chosen_indices_male_list + chosen_indices_female_list
+
+        return all_chosen_indices
 
 
-            interval_arrays[i].extend(indices_of_people_in_interval)
-        
-            #FOR TESTING: 
-            #print(f"Indices in interval {self.sample_frame_pars['age_intervals'][i]}: {indices_of_people_in_interval}")
-
-
-
-        
-    
 
     def assign_donation_probs(self): 
         '''
@@ -147,8 +173,8 @@ class Sampler:
 
         '''
         if self.study_design_pars['design_type'] == 'longitudinal':
-            #call define cohort function 
-            pass
+            cohort = self.define_cohort()
+            self.people['provides_sample_prob'][cohort] = 1
 
         elif self.study_design_pars['design_type'] == 'cross_sectional':
             pop_size = self.people.pars['pop_size'] 
@@ -437,7 +463,7 @@ def plot_true_IgG_levels(sim, people, people_indices):
     plt.xlabel('Days')
     plt.ylabel('IgG Levels')
     plt.title('IgG Levels Over Time for Specific People')
-    plt.legend()
+    #plt.legend()
     plt.grid(True)
     plt.show()
 

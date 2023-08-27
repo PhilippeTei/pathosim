@@ -147,19 +147,35 @@ def validate_imm(i, pathogen, people, mini, maxi, rec_dead_date):
         assert abs(people.imm_level[pathogen, i] - maxi) < 0.01
          
 
-def update_IgG(people, pathogen, error_value):
+def update_IgG(people, indices, ratio, b, prev_IgG, t):
     '''
     Step IgG levels forward in time 
     ''' 
-    conversion_factor = 69.13 #slope
-    adjusted_slope = conversion_factor * error_value
-    x, y = 1, 90 #pivot point
-    y_int = y - x*adjusted_slope
-    inds_alive = cvu.false(people.dead)
-    inds_with_nabs = inds_alive[cvu.true(people.nab[pathogen, inds_alive])]
-    people['IgG_level'][inds_with_nabs] = (people['nab'][0][inds_with_nabs] * adjusted_slope) + y_int
-    #Should maybe consider not looking at negative options, also initial level IgG then convert? or just keep converting with
 
+    mask = (prev_IgG == 0) & (people['nab'][0, indices] > 0)
+    num_to_initialize = np.count_nonzero(mask)
+
+    if num_to_initialize > 0:
+        # Initialize IgG using uniform distribution for selected indices
+        initialized_indices = indices[mask]
+        #people['IgG_level'][initialized_indices] = np.random.uniform(40.63, 162.5, num_to_initialize)
+        people['IgG_level'][initialized_indices] = np.random.uniform(162, 162.5, num_to_initialize)
+        #average_initialized_IgG = np.mean(people['IgG_level'][initialized_indices])
+        #print("Average initialized IgG:", average_initialized_IgG)
+
+    
+    # Update IgG using the formula for all other indices
+    updated_indices = indices[~mask]
+    if len(updated_indices) > 0:
+        ratio_mask = np.isin(indices, updated_indices)
+        updated_ratio = ratio[ratio_mask]  # Select ratio values for updated indices
+        curr_IgG = people['IgG_level'][updated_indices]
+        people['IgG_level'][updated_indices] = (updated_ratio * (curr_IgG - b)) + b
+        #average_updated_IgG = np.mean(people['IgG_level'][updated_indices])
+        #print("Average updated IgG:", average_updated_IgG)
+
+        #print(people['IgG_level'][updated_indices])
+    
 
 
 def calc_VE(nab, ax, pars):

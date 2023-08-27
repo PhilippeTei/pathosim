@@ -8,8 +8,8 @@ import numpy as np
 
 b_immunoassay_test_true = aps.Immunoassay(3, binary_result=True, pos_threshold=4)
 q_immunoassay_test = aps.Immunoassay(3)
-pathogen = inf.SARS_COV_2(20)
-pathogen.add_existing_variant('alpha', days=5, n_imports=10)
+pathogen = inf.SARS_COV_2(10)
+pathogen.add_existing_variant('alpha', days=10, n_imports=10)
 #aps_program_test = aps.active_population_sampling_program(b_immunoassay_test_true,  {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
 #                                        'num_people_captured': [10, 10]}, 'canadian_blood_donors')
 
@@ -34,12 +34,19 @@ pars = dict(
 #NEED TO FIX PAR MISMATCH WHEN TRYING TO RUN SIM WITH PARS DICT
 #aps_program_test = aps.active_population_sampling_program(ppl, b_immunoassay_test_true,  {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
 #                                        'num_people_captured': [10, 10]}, 'canadian_blood_donors')
-sim = inf.Sim(pop_size=300, pop_type ='random', pathogens=[pathogen], active_surveillance_pars = aps_pars)
+sim = inf.Sim(pop_size= 20000, pop_type ='random', pathogens=[pathogen], n_days=365)
+#sim = inf.Sim(pop_size=20000, pop_type ='random', pathogens=[pathogen], n_days=50, active_surveillance_pars = aps_pars)
 sim.run()
 #print(sim.people['provides_sample_prob'])
 #sampler_test = aps.Sampler(sim.people, {'design_type' : 'cross_sectional', 'sampling_periods' : [(0, 14), (15, 30)], 
 #                                        'num_people_captured': [50, 50]}, 'canadian_blood_donors')
+longitudinal = aps.Sampler(sim.people, {'design_type' : 'longitudinal', 'sampling_interval' : 7, 'dropout_rate' : 0.01}, 'CanPath_preexisting_cohort')
+#print(sim.people['provides_sample_prob'])
+#people_to_test = sampler_test.apply(30)
 
+
+
+sim.plot_result('pop_IgG', pathogen)
 #different tests to run 
 b_immunoassay_test_false = aps.Immunoassay(3, binary_result=True, pos_threshold=7)
 LOD_under_test = aps.Immunoassay(6)
@@ -53,7 +60,9 @@ LOD_under_b_test = aps.Immunoassay(6, binary_result=True, pos_threshold=5)
 '''
 TESTING PLOTTING FUNCTIONS
 '''
-#aps.plot_true_IgG_levels(sim, sim.people, people_to_test)
+#random_indices = np.random.choice(sim['pop_size'], size=1000, replace=False)
+#print(sim.people['IgG_level'][random_indices])
+#aps.plot_true_IgG_levels(sim, sim.people, random_indices)
 #aps.plot_test_IgG_levels(sim, people_to_test, q_immunoassay_test)
 
 #test_results = LOD_under_b_test.apply(sampler_test.people, people_to_test)

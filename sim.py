@@ -86,6 +86,7 @@ class Sim(cvb.BaseSim):
         self.TestScheduler = None 
         self.active_surveillance_pars = None
         self.aps_program = None # An active population sampling object 
+        self.b = 0 #y-int 
 
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
@@ -194,9 +195,16 @@ class Sim(cvb.BaseSim):
         if self.pars['active_surveillance_pars']: #Creates active surveillance object with dictionary of pars
             self.aps_program = aps(self.people, **self.pars['active_surveillance_pars'])
 
+        #initialize y-intercept for the simulation based on slope conversion 
+        conversion_factor = 69.13 #slope
+        adjusted_slope = conversion_factor * self.people.IgG_conversion_slope
+        x, y = 1, 90 #pivot point
+        self.b = y - x*adjusted_slope
+
         self.initialized   = True
         self.complete      = False
         self.results_ready = False
+
 
         return self
 
@@ -473,7 +481,7 @@ class Sim(cvb.BaseSim):
             #IgG Level Results: The result for each day is kept in an array len = num_days +1 which contains an array of 
             #people's IgG levels in the population at each day 
             self.results[i]['IgG_level'] = np.full(((self.pars['n_days'] +1), self.pars['pop_size']), 0, dtype = int)
-        
+            self.results[i]['pop_IgG']            = init_res('Population IgG levels', scale=False)
         
             # TODO: Need to check this with Andrew. Discussion. 
             self.results[i]['new_diagnoses_custom']      = init_res('Number of new diagnoses with custom testing module')
@@ -565,9 +573,6 @@ class Sim(cvb.BaseSim):
         if self.pars['enable_smartwatches']:
             self.people.init_watches(self.pars['smartwatch_pars'])
              
-        #Initialize IgG conversion error for the simulation
-        self.people.IgG_conversion_slope = self.people.init_IgG_conversion_slope()
-        #print(self.people.IgG_conversion_slope)
 
         return self
 
@@ -939,7 +944,7 @@ class Sim(cvb.BaseSim):
                     for p1,p2 in pairs:
                         source_inds, target_inds = cvu.compute_infections(beta, p1, p2, betas, rel_trans, rel_sus, legacy=self._legacy_trans)  # Calculate transmission! 
                         people.infect(inds=target_inds, hosp_max=hosp_max, icu_max=icu_max, source=source_inds, layer=lkey, variant=variant, pathogen_index = current_pathogen)  # Actually infect people
-                                  
+                        
         ##### CALCULATE STATISTICS #####
         for current_pathogen in range(len(self.pathogens)):
 
@@ -974,10 +979,27 @@ class Sim(cvb.BaseSim):
             # Update nab, immunity and IgG for this time step
             #if self['use_waning']: 
             if self.pathogens[current_pathogen].use_nab_framework: 
+                # Do math to calculate current IgG, get current nab levels from t-1 
+                inds_alive = cvu.false(people.dead)
+                inds_with_nabs = inds_alive[cvu.true(people.nab[current_pathogen, inds_alive])]
+                curr_nabs = people['nab'][0][inds_with_nabs]
                 has_nabs = cvu.true(people.peak_nab[current_pathogen])
                 if len(has_nabs):
                     cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
-                cvimm.update_IgG(people, current_pathogen, self.people.IgG_conversion_slope)
+                    
+                    #Now with new nab levels (t), calculate the ratio from the previous nab level
+                    new_nabs = people['nab'][0][inds_with_nabs]
+                    ratio = new_nabs/curr_nabs
+
+                    #get the y-intercept, the attribute self.b
+
+                    #Use this ratio with the current IgG level to update the next IgG level
+                    curr_IgG = people['IgG_level'][inds_with_nabs]
+                    cvimm.update_IgG(people, inds_with_nabs, ratio, self.b, curr_IgG, self.t)
+                   
+
+
+                
             else:
                 has_imm = np.where(people.imm_level[current_pathogen] > 0)
                 if len(has_imm):
@@ -996,7 +1018,12 @@ class Sim(cvb.BaseSim):
              
             self.results[current_pathogen]['pop_nabs'][t]            = np.sum(people.nab[current_pathogen, inds_with_nabs])/len(inds_alive_nabs)
             self.results[current_pathogen]['pop_imm'][t]            = np.sum(people.imm_level[current_pathogen,inds_with_imm ])/len(inds_alive_imm)
-             
+            #print("nab")
+            #print(self.results[current_pathogen]['pop_nabs'][t])
+            self.results[current_pathogen]['pop_IgG'][t]            = np.sum(people.IgG_level[inds_with_nabs])/len(inds_alive_nabs)
+            #print("igg")
+            #print(self.results[current_pathogen]['pop_IgG'][t])
+
             if self.enable_stratifications:
                 sus_imm_mean = 0
                 for i in range(len(people.sus_imm[current_pathogen])):
@@ -1033,7 +1060,7 @@ class Sim(cvb.BaseSim):
                     num_people_per_day = self.aps_program.sampler.study_design_pars['num_people_captured'][0]//(period[1] - period[0])
                     if self.t >= period[0] and self.t <= period[1]: #check if the day is in the period 
                         people_to_test, test_results = self.aps_program.apply(num_people = num_people_per_day)
-                        print(people_to_test)
+                        #print(people_to_test)
                         self.aps_program.results.store_results(self.t, people_to_test, test_results)
                     if self.t == period[1]: # If self.t is the end of the first period
                         self.aps_program.time.pop(0) # will move to the next sampling period 
@@ -1061,17 +1088,16 @@ class Sim(cvb.BaseSim):
         # Apply analyzers (note this comes with Covasim) -- same syntax as interventions
         for i, analyzer in enumerate(self['analyzers']):
             analyzer(self)
+        
 
         # Tidy up
         self.t += 1
         if self.t == self.npts:
             self.complete = True
 
-        if self.t == 59: 
-            print(self.aps_program.results.plot_average_results_each_day())
+        #if self.t == 364: 
+        #    print(self.aps_program.results.plot_average_results_each_day())
             
-            
-
         return
 
     def update_results_mr(self, people, pathogen = 0): 

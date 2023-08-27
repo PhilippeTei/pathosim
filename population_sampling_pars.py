@@ -19,9 +19,12 @@ sample_frame_mapping = {
     'households' : {}, 
 
     'CanPath_preexisting_cohort' : {
+        #BC generations project 
         'age_intervals' : [(35, 44), (45, 54), (55, 64), (64, 100)],
         'donor_breakdown_per_interval' : [0.133, 0.271, 0.405, 0.191],
         'sex_breakdown' : {'male' : 0.31, 'female' : 0.69}, 
+        'cohort_size' : 30000,
+        'actual_pop_size' : 5000000 #BC population size 
         #should dropout rate be here?
 
     }
