@@ -1005,6 +1005,15 @@ class People(cvb.BasePeople):
             inds_zeros = np.intersect1d(np.where(self['imm_level'][pathogen_index] <= 0.001), inds)
             self['imm_level'][pathogen_index, inds_zeros] = 0.005 
 
+            self['decay_rate'][pathogen_index,inds] = self.pars['pathogens'][pathogen_index].imm_days_to_final_value
+            self['growth_rate'][pathogen_index,inds] = self.pars['pathogens'][pathogen_index].imm_days_to_peak
+            self['imm_min'][pathogen_index,inds] = self.pars['pathogens'][pathogen_index].imm_final_value
+            self['imm_peak'][pathogen_index,inds] = self.pars['pathogens'][pathogen_index].imm_peak
+
+            self['growth_start_date'][pathogen_index,inds] = self.t
+            
+            self['curr_min'][pathogen_index,inds] = self.imm_level[pathogen_index,inds]
+
         # Reset all other dates  
        
         for key in ['date_p_symptomatic', 'date_p_severe', 'date_p_critical', 'date_p_diagnosed', 'date_p_recovered']:
@@ -1119,10 +1128,14 @@ class People(cvb.BasePeople):
 
         
 
-        if not self.pars['pathogens'][pathogen_index].use_nab_framework:
+        if not self.pars['pathogens'][pathogen_index].use_nab_framework: 
             rec_inds = list(set(inds) - set(dead_inds))
             self['t_min_imm'][pathogen_index, rec_inds] = self.date_p_recovered[pathogen_index, rec_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_final_value
             self['t_min_imm'][pathogen_index, dead_inds] = self.date_p_dead[pathogen_index, dead_inds] + self.pars['pathogens'][pathogen_index].imm_days_to_final_value
+
+            self['decay_start_date'][pathogen_index, rec_inds] = self.date_p_recovered[pathogen_index, rec_inds] 
+            self['decay_start_date'][pathogen_index, dead_inds] = self.date_p_dead[pathogen_index, dead_inds] 
+
 
         # HANDLE VIRAL LOAD CONTROL POINTS
        
@@ -1361,7 +1374,8 @@ class People(cvb.BasePeople):
                         self.date_p_dead[pathogen_index, index] = np.nan
                         self.date_p_recovered[pathogen_index, index] = date_rec  
                         self.dur_disease[pathogen_index, index] = self.dur_exp2inf[pathogen_index, index] + self.dur_inf2sym[pathogen_index,index] + self.dur_sym2sev[pathogen_index, index] + self.dur_sev2crit[pathogen_index, index] + dur_crit2rec  # Store how long this person had COVID-19
-
+                        
+                        self['decay_start_date'][pathogen_index, index] = date_rec
                     else:
                         
                         dur_crit2die = cvu.sample(**durpars['crit2die'], size=1) * lbd
@@ -1374,7 +1388,7 @@ class People(cvb.BasePeople):
                         self.date_p_dead[pathogen_index, index] = date_dead
                         self.dur_disease[pathogen_index, index] = self.dur_exp2inf[pathogen_index,index] + self.dur_inf2sym[pathogen_index,index] + self.dur_sym2sev[pathogen_index,index] + self.dur_sev2crit[pathogen_index,index] + dur_crit2die   # Store how long this person had COVID-19
                         self.date_p_recovered[pathogen_index,index] = np.nan # If they did die, remove them from recovered
-
+                        self['decay_start_date'][pathogen_index, index] = date_dead
         
         #self.print_disease_trajectory(index, pathogen_index)
         

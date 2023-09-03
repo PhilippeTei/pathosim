@@ -11,8 +11,8 @@ relative_path = "baselines"
 full_path = os.path.join(absolute_path, relative_path)
 
 # Define the interventions
-vx = inf.vaccinate_num('pfizer',200, False,None, None)
-vxbst = inf.vaccinate_num('pfizer',150, True,None, None)
+vx = inf.vaccinate_num_cov('pfizer',200, False,None, None)
+vxbst = inf.vaccinate_num_cov('pfizer',150, True,None, None)
  
 cb = inf.change_beta(days=40, changes=0.5) 
 

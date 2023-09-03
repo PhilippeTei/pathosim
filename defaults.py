@@ -131,12 +131,19 @@ class PeopleMeta(sc.prettyobj):
             't_peak_imm',
             't_min_imm', 
             'curr_min',
+            'decay_rate',
+            'growth_rate',
+            'imm_min',
+            'imm_peak',
+            'growth_start_date',
+            'decay_start_date'
             ]
 
         # Additional vaccination states
         self.vacc_states = [
             'doses',          # Number of doses given per person
             'vaccine_source', # index of vaccine that individual received
+            'vaccine_path', # index of pathogen vaccine is for
         ]
 
         # Set the dates various events took place: these are floats per person -- used in people.py

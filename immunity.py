@@ -95,39 +95,32 @@ def update_nab(people, inds, pathogen):
 def update_imm(people, inds, pathogen, min_imm, max_imm, days_to_min, days_to_max):
     '''
     Step imm levels forward in time
-    ''' 
-    people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['date_p_recovered'][pathogen], people['date_p_dead'][pathogen], people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people['p_exposed'][pathogen], people.t, people['date_p_exposed'][pathogen],  people['curr_min'][pathogen],people['p_recovered'][pathogen],  people.imm_level[pathogen],inds,min_imm, max_imm,days_to_min,days_to_max)
+    '''  
+    people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['decay_start_date'][pathogen],  people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people.t, people['growth_start_date'][pathogen],  people['curr_min'][pathogen],  people.imm_level[pathogen],inds,min_imm[pathogen], max_imm[pathogen],days_to_min[pathogen],days_to_max[pathogen])
     return
 
  
 @nb.njit()
-def update_imm_nb(people_dead, people_date_rec, people_date_dead, people_t_peak, people_t_min, people_exposed, t, people_date_exposed, people_curr_min, people_recovered, people_imm_level, inds, min_imm, max_imm, days_to_min, days_to_max):
+def update_imm_nb(people_dead,decay_start_date,  people_t_peak, people_t_min, t, growth_start_date, people_curr_min, people_imm_level, inds, min_imm, max_imm, days_to_min, days_to_max):
 
     for i in inds:    
         if people_dead[i]:
             continue
-
-        if not np.isnan(people_date_rec[i]):
-             rec_or_dead_date =  people_date_rec[i]  
-        else:
-             rec_or_dead_date =  people_date_dead[i]  
-
-
-        if (people_t_peak[i] - t) > 0 and people_exposed[i] == True:
-            x = t - people_date_exposed[i]
              
-            people_imm_level[i] = immunity_growth_function(x, people_curr_min[i], max_imm, days_to_max) #if previously infected, immunity starts at the min value 
+        rec_or_dead_date = decay_start_date[i] 
+        if (people_t_peak[i] - t) > 0:
+            x = t - growth_start_date[i]
+            people_imm_level[i] = immunity_growth_function(x, people_curr_min[i], max_imm[i], days_to_max[i]) #if previously infected, immunity starts at the min value 
 
-
-
-        elif (people_t_peak[i] - t) <= 0 and people_exposed[i] == True and rec_or_dead_date > t: #if between peak and recovered
-            people_curr_min[i] = min_imm
+             
+        elif (people_t_peak[i] - t) <= 0 and rec_or_dead_date > t: #if between peak and recovered
+            people_curr_min[i] = min_imm[i]
             continue
 
-        elif (people_t_min[i] - t) > 0 and (people_t_peak[i] - t) <= 0  and rec_or_dead_date <= t and people_recovered[i] == True:
+        elif (people_t_min[i] - t) > 0 and (people_t_peak[i] - t) <= 0  and rec_or_dead_date <= t:
             
             x = t - rec_or_dead_date
-            people_imm_level[i] = immunity_decay_function(x, min_imm, max_imm, days_to_min)
+            people_imm_level[i] = immunity_decay_function(x, min_imm[i], max_imm[i], days_to_min[i])
             people_curr_min[i] = people_imm_level[i]  
 
     return people_imm_level, people_curr_min
@@ -268,21 +261,29 @@ def check_immunity(people, variant, pathogen):
     v_cross_imm_multiplier[was_inf_diff] = [v_cross_imm[i] for i in variant_was_inf_diff]
 
     pars = people.pars
-    if len(is_vacc) and len(pars['vaccine_pars']): # if using simple_vaccine, do not apply
-        vx_pars = pars['vaccine_pars']
-        vx_map = pars['vaccine_map']
-        var_key = people.pars['pathogens'][pathogen].get_variants_labels()[variant]
-        imm_arr = np.zeros(max(vx_map.keys())+1)
-        for num,key in vx_map.items():
-            imm_arr[num] = vx_pars[key][var_key]
-        v_cross_imm_multiplier[is_vacc] = imm_arr[vacc_source]
+
 
     if pars['pathogens'][pathogen].use_nab_framework:
+
+        if len(is_vacc) and len(pars['vaccine_pars']): # if using simple_vaccine, do not apply
+            vx_pars = pars['vaccine_pars']
+            vx_map = pars['vaccine_map']
+            var_key = people.pars['pathogens'][pathogen].get_variants_labels()[variant]
+            imm_arr = np.zeros(max(vx_map.keys())+1)
+             
+            for num,key in vx_map.items():
+                if vx_pars[key]['type'] == 'gen': #ignore if vax changes generic immunity system
+                    continue
+                imm_arr[num] = vx_pars[key][var_key]
+
+            v_cross_imm_multiplier[is_vacc] = imm_arr[vacc_source]
+
         current_nabs *= v_cross_imm_multiplier
         people.sus_imm[pathogen,variant,:]  = calc_VE(current_nabs, 'sus',  nab_eff)
         people.symp_imm[pathogen,variant,:] = calc_VE(current_nabs, 'symp', nab_eff)
         people.sev_imm[pathogen, variant,:]  = calc_VE(current_nabs, 'sev',  nab_eff)
     else:
+         
         current_imm *= v_cross_imm_multiplier 
         clamped_current_imm = cvu.clamp_np_arr(current_imm, 0, pars['pathogens'][pathogen].imm_peak)
          

@@ -32,7 +32,7 @@ for i in range(sims):
                 comorbidities = np.array([1.00]),
                 severe_probs  = np.array([0.2]),
                 crit_probs    = np.array([0.5]),
-                death_probs   = np.array([0.9]),
+                death_probs   = np.array([0.]),
                 )
    
     #MyNewPathogen.prognoses = MyNewPathogen.get_default_prognoses(False)

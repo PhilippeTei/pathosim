@@ -978,8 +978,8 @@ class Sim(cvb.BaseSim):
                 cvimm.update_IgG(people, current_pathogen)
             else:
                 has_imm = np.where(people.imm_level[current_pathogen] > 0)
-                if len(has_imm):
-                    cvimm.update_imm(people, has_imm[0], current_pathogen, self.pathogens[current_pathogen].imm_final_value, self.pathogens[current_pathogen].imm_peak, self.pathogens[current_pathogen].imm_days_to_final_value, self.pathogens[current_pathogen].imm_days_to_peak)
+                if len(has_imm): 
+                    cvimm.update_imm(people, has_imm[0], current_pathogen, self.people['imm_min'],  self.people['imm_peak'],  self.people['decay_rate'], self.people['growth_rate'])
         
 
         for current_pathogen in range(len(self.pathogens)): 
