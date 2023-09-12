@@ -376,11 +376,12 @@ class People(cvb.BasePeople):
     def update_states_post(self, pathogen = 0):
         ''' Perform post-timestep updates '''
          
-        self.flows[pathogen]['new_diagnoses'] += len(strat.get_indices_to_track(self.sim, self.check_inds(self.diagnosed[pathogen], self.date_pos_test)))
+        diag = self.check_diagnosed(pathogen = pathogen)
+        self.flows[pathogen]['new_diagnoses'] += diag
         quar = self.check_quar()
         self.flows[pathogen]['new_quarantined'] += quar
         
-        self.flows['new_diagnoses'] += self.check_diagnosed(pathogen = pathogen)
+        self.flows['new_diagnoses'] += diag
 
         if pathogen == 0:
             self.flows['new_quarantined'] += quar
@@ -749,6 +750,7 @@ class People(cvb.BasePeople):
                 self.date_end_quarantine[ind] = max(self.date_end_quarantine[ind], end_day) # Extend quarantine if required
             elif not (self.dead[ind] or self.recovered[ind] or self.diagnosed[ind]): # Unclear whether recovered should be included here # elif not (self.dead[ind] or self.diagnosed[ind]):
                 self.quarantined[ind] = True
+                print(ind)
                 self.date_quarantined[ind] = self.t
                 self.date_end_quarantine[ind] = end_day
 
@@ -1446,6 +1448,7 @@ class People(cvb.BasePeople):
             'severe',
             'critical',  
             'naive',
+            'diagnosed',
             'dead'
             ]
         states_to_merge_with_AND = [ 
@@ -1532,11 +1535,12 @@ class People(cvb.BasePeople):
         pos_test      = cvu.n_binomial(test_sensitivity, len(is_infectious))
         is_inf_pos    = is_infectious[pos_test]
 
-        not_diagnosed = is_inf_pos[np.isnan(self.date_diagnosed[is_inf_pos])]
+        not_diagnosed = is_inf_pos[np.isnan(self.date_p_diagnosed[pathogen,is_inf_pos])]
         not_lost      = cvu.n_binomial(1.0-loss_prob, len(not_diagnosed))
         final_inds    = not_diagnosed[not_lost]
 
         # Store the date the person will be diagnosed, as well as the date they took the test which will come back positive
+  
         self.date_diagnosed[final_inds] = self.t + test_delay
         self.date_p_diagnosed[pathogen, final_inds] = self.t + test_delay
         self.date_pos_test[final_inds] = self.t

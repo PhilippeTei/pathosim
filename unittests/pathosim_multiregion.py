@@ -13,7 +13,7 @@ import os
 
 """ Parameters for Behaviour Module """
 ## Specify demographic parameters. Given as a list. ##
-reg_sizes = [20000] * 5
+reg_sizes = [4000] * 5
 reg_names = ['A', 'B', 'C', 'D', 'E']
 reg_names = [f'Region {name}' for name in reg_names]
 
@@ -23,7 +23,7 @@ for reg in reg_names:
         name=reg,
         n=reg_sizes[reg_names.index(reg)],
         com_contacts=10,
-        country_location='canada'
+        country_location='england'
     )
     reg_params.append(cur_params)
 
@@ -81,7 +81,7 @@ multi_reg_params = dict(
 )
 
 pars = dict(
-    pop_size=100000, 
+    pop_size=20000, 
     pop_type='behaviour_module',
     n_days = 200,
     rand_seed = 0

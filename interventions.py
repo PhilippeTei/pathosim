@@ -904,6 +904,7 @@ class test_prob(Intervention):
         self.start_day        = start_day
         self.end_day          = end_day
         self.pdf              = cvu.get_pdf(**sc.mergedicts(swab_delay)) # If provided, get the distribution's pdf -- this returns an empty dict if None is supplied
+        self.pathogen = 0
         return
 
 
@@ -936,10 +937,10 @@ class test_prob(Intervention):
             return
 
         # Find probablity for symptomatics to be tested
-        symp_inds  = cvu.true(sim.people.symptomatic)
+        symp_inds  = cvu.true(sim.people.p_symptomatic[self.pathogen])
         symp_prob = self.symp_prob
         if self.pdf:
-            symp_time = cvd.default_int(t - sim.people.date_symptomatic[symp_inds]) # Find time since symptom onset
+            symp_time = cvd.default_int(t - sim.people.date_p_symptomatic[self.pathogen, symp_inds]) # Find time since symptom onset
             inv_count = (np.bincount(symp_time)/len(symp_time)) # Find how many people have had symptoms of a set time and invert
             count = np.nan * np.ones(inv_count.shape)
             count[inv_count != 0] = 1/inv_count[inv_count != 0]
@@ -965,7 +966,7 @@ class test_prob(Intervention):
         quar_test_inds = get_quar_inds(self.quar_policy, sim)
         symp_quar_inds  = np.intersect1d(quar_test_inds, symp_inds)
         asymp_quar_inds = np.intersect1d(quar_test_inds, asymp_inds)
-        diag_inds       = cvu.true(sim.people.diagnosed)
+        diag_inds       = cvu.true(sim.people.p_diagnosed[self.pathogen])
 
         # Construct the testing probabilities piece by piece -- complicated, since need to do it in the right order
         test_probs = np.zeros(sim['pop_size']) # Begin by assigning equal testing probability to everyone
@@ -981,8 +982,9 @@ class test_prob(Intervention):
         test_inds = cvu.true(cvu.binomial_arr(test_probs)) # Finally, calculate who actually tests
 
         # Actually test people
-        sim.people.test(test_inds, test_sensitivity=self.sensitivity, loss_prob=self.loss_prob, test_delay=self.test_delay) # Actually test people
+        sim.people.test(test_inds, test_sensitivity=self.sensitivity, loss_prob=self.loss_prob, test_delay=self.test_delay, pathogen = self.pathogen) # Actually test people
         sim.results['new_tests'][t] += len(test_inds)*sim['pop_scale']/sim.rescale_vec[t] # If we're using dynamic scaling, we have to scale by pop_scale, not rescale_vec
+        sim.results[self.pathogen]['new_tests'][t] += len(test_inds)*sim['pop_scale']/sim.rescale_vec[t] # If we're using dynamic scaling, we have to scale by pop_scale, not rescale_vec
 
         return test_inds
 
@@ -1023,6 +1025,7 @@ class contact_tracing(Intervention):
         self.presumptive = presumptive
         self.capacity = capacity
         self.quar_period = quar_period # If quar_period is None, it will be drawn from sim.pars at initialization
+        self.pathogens = [0]
         return
 
 
@@ -1065,22 +1068,24 @@ class contact_tracing(Intervention):
             return
         elif end_day is not None and t > end_day:
             return
+         
+        for i in self.pathogens:
+            trace_inds = self.select_cases(sim, i)
+            contacts = self.identify_contacts(sim, trace_inds)
+            self.schedule_notification_and_quarantine(sim, contacts)
 
-        trace_inds = self.select_cases(sim)
-        contacts = self.identify_contacts(sim, trace_inds)
-        self.schedule_notification_and_quarantine(sim, contacts)
-        return contacts
+        return
 
 
-    def select_cases(self, sim):
+    def select_cases(self, sim, pathogen):
         '''
         Return people to be traced at this time step
         '''
         if not self.presumptive:
-            inds = cvu.true(sim.people.date_diagnosed == sim.t) # Diagnosed this time step, time to trace
+            inds = cvu.true(sim.people.date_p_diagnosed[pathogen] == sim.t) # Diagnosed this time step, time to trace
         else:
-            just_tested = cvu.true(sim.people.date_tested == sim.t) # Tested this time step, time to trace
-            inds = cvu.itruei(sim.people.exposed, just_tested) # This is necessary to avoid infinite chains of asymptomatic testing
+            just_tested = cvu.true(sim.people.date_p_tested[pathogen] == sim.t) # Tested this time step, time to trace
+            inds = cvu.itruei(sim.people.p_exposed[pathogen], just_tested) # This is necessary to avoid infinite chains of asymptomatic testing
 
         # If there is a tracing capacity constraint, limit the number of agents that can be traced
         if self.capacity is not None:
@@ -1116,7 +1121,7 @@ class contact_tracing(Intervention):
 
             if this_trace_prob == 0:
                 continue
-
+             
             traceable_inds = sim.people.contacts[lkey].find_contacts(trace_inds)
             if len(traceable_inds):
                 contacts[self.trace_time[lkey]].extend(cvu.binomial_filter(this_trace_prob, traceable_inds)) # Filter the indices according to the probability of being able to trace this layer
