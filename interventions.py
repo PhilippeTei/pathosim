@@ -749,7 +749,7 @@ class test_num(Intervention):
 
     def __init__(self, daily_tests, symp_test=100.0, quar_test=1.0, quar_policy=None, subtarget=None,
                  ili_prev=None, sensitivity=1.0, loss_prob=0, test_delay=0,
-                 start_day=0, end_day=None, swab_delay=None, **kwargs):
+                 start_day=0, end_day=None, swab_delay=None, pathogen = 0,**kwargs):
         super().__init__(**kwargs) # Initialize the Intervention object
         self.daily_tests = daily_tests # Should be a list of length matching time
         self.symp_test   = symp_test   # Set probability of testing symptomatics
@@ -763,6 +763,7 @@ class test_num(Intervention):
         self.start_day   = start_day
         self.end_day     = end_day
         self.pdf         = cvu.get_pdf(**sc.mergedicts(swab_delay)) # If provided, get the distribution's pdf -- this returns an empty dict if None is supplied
+        self.pathogen = pathogen
         return
 
 
@@ -808,16 +809,17 @@ class test_num(Intervention):
                 return
             else:
                 sim.results['new_tests'][t] += n_tests
+                sim.results[self.pathogen]['new_tests'][t] += n_tests
         else:
             return
 
         test_probs = np.ones(sim.n) # Begin by assigning equal testing weight (converted to a probability) to everyone
 
         # Calculate test probabilities for people with symptoms
-        symp_inds = cvu.true(sim.people.symptomatic)
+        symp_inds = cvu.true(sim.people.p_symptomatic[self.pathogen])
         symp_test = self.symp_test
         if self.pdf: # Handle the onset to swab delay
-            symp_time = cvd.default_int(t - sim.people.date_symptomatic[symp_inds]) # Find time since symptom onset
+            symp_time = cvd.default_int(t - sim.people.date_p_symptomatic[self.pathogen, symp_inds]) # Find time since symptom onset
             inv_count = (np.bincount(symp_time)/len(symp_time)) # Find how many people have had symptoms of a set time and invert
             count = np.nan * np.ones(inv_count.shape) # Initialize the count
             count[inv_count != 0] = 1/inv_count[inv_count != 0] # Update the counts where defined
@@ -856,7 +858,7 @@ class test_num(Intervention):
         # Now choose who gets tested and test them
         n_tests = min(n_tests, (test_probs!=0).sum()) # Don't try to test more people than have nonzero testing probability
         test_inds = cvu.choose_w(probs=test_probs, n=n_tests, unique=True) # Choose who actually tests
-        sim.people.test(test_inds, test_sensitivity=self.sensitivity, loss_prob=self.loss_prob, test_delay=self.test_delay)
+        sim.people.test(test_inds, test_sensitivity=self.sensitivity, loss_prob=self.loss_prob, test_delay=self.test_delay, pathogen = self.pathogen)
 
         return test_inds
 
@@ -889,7 +891,7 @@ class test_prob(Intervention):
         interv = cv.test_prob(symp_quar_prob=0.4) # Test 40% of those in quarantine with symptoms
     '''
     def __init__(self, symp_prob, asymp_prob=0.0, symp_quar_prob=None, asymp_quar_prob=None, quar_policy=None, subtarget=None, ili_prev=None,
-                 sensitivity=1.0, loss_prob=0.0, test_delay=0, start_day=0, end_day=None, swab_delay=None, **kwargs):
+                 sensitivity=1.0, loss_prob=0.0, test_delay=0, start_day=0, end_day=None, swab_delay=None, pathogen = 0, **kwargs):
         super().__init__(**kwargs) # Initialize the Intervention object
         self.symp_prob        = symp_prob
         self.asymp_prob       = asymp_prob
@@ -904,7 +906,7 @@ class test_prob(Intervention):
         self.start_day        = start_day
         self.end_day          = end_day
         self.pdf              = cvu.get_pdf(**sc.mergedicts(swab_delay)) # If provided, get the distribution's pdf -- this returns an empty dict if None is supplied
-        self.pathogen = 0
+        self.pathogen = pathogen
         return
 
 
@@ -1008,6 +1010,7 @@ class contact_tracing(Intervention):
         presumptive (bool):       whether or not to begin isolation and contact tracing on the presumption of a positive diagnosis (default: no)
         capacity    (int):        optionally specify a maximum number of newly diagnosed people to trace each day
         quar_period (int):        number of days to quarantine when notified as a known contact. Default value is ``pars['quar_period']``
+        pathogens (array int): list of indices of pathogens to trace contacts when positive.
         kwargs      (dict):       passed to Intervention()
 
     **Example**::
@@ -1016,7 +1019,7 @@ class contact_tracing(Intervention):
         ct = cv.contact_tracing(trace_probs=0.5, trace_time=2)
         sim = cv.Sim(interventions=[tp, ct]) # Note that without testing, contact tracing has no effect
     '''
-    def __init__(self, trace_probs=None, trace_time=None, start_day=0, end_day=None, presumptive=False, quar_period=None, capacity=None, **kwargs):
+    def __init__(self, trace_probs=None, trace_time=None, start_day=0, end_day=None, presumptive=False, quar_period=None, capacity=None, pathogens = [0], **kwargs):
         super().__init__(**kwargs) # Initialize the Intervention object
         self.trace_probs = trace_probs
         self.trace_time  = trace_time
@@ -1024,10 +1027,8 @@ class contact_tracing(Intervention):
         self.end_day     = end_day
         self.presumptive = presumptive
         self.capacity = capacity
-        self.quar_period = quar_period # If quar_period is None, it will be drawn from sim.pars at initialization
-        self.pathogens = [0]
-        return
-
+        self.quar_period = quar_period # If quar_period is None, it will be drawn from sim.pars at initialization         return
+        self.pathogens = pathogens
 
     def initialize(self, sim):
         ''' Process the dates and dictionaries '''
@@ -1180,7 +1181,7 @@ class notify_contacts(Intervention):
         id_contacts = cv.contact_tracing(trace_probs=0.5, trace_time=2)
         sim = cv.Sim(interventions=[tp, ct]) # Note that without some method of diagnosis individuals, contact tracing has no effect
     '''
-    def __init__(self, trace_probs=None, trace_time=None, start_day=0, end_day=None, presumptive=False, quar_period=None, capacity=None, **kwargs):
+    def __init__(self, trace_probs=None, trace_time=None, start_day=0, end_day=None, presumptive=False, quar_period=None, capacity=None, pathogens = [0], **kwargs):
         super().__init__(**kwargs) # Initialize the Intervention object
         self.trace_probs = trace_probs
         self.trace_time  = trace_time
@@ -1188,6 +1189,7 @@ class notify_contacts(Intervention):
         self.end_day     = end_day
         self.presumptive = presumptive
         self.capacity = capacity
+        self.pathogens = pathogens
         return
 
 
@@ -1229,18 +1231,19 @@ class notify_contacts(Intervention):
         elif end_day is not None and t > end_day:
             return
 
-        trace_inds = self.select_cases(sim)
-        contacts = self.identify_contacts(sim, trace_inds)
-        self.schedule_notification(sim, contacts)
+        for i in self.pathogens:
+            trace_inds = self.select_cases(sim, i)
+            contacts = self.identify_contacts(sim, trace_inds)
+            self.schedule_notification(sim, contacts)
         return
 
 
-    def select_cases(self, sim):
+    def select_cases(self, sim, pathogen):
         '''
         Return people to be traced at this time step
         '''
         # Select people who were diagnosed on this time step
-        inds = cvu.true(sim.people.date_diagnosed == sim.t)
+        inds = cvu.true(sim.people.date_p_diagnosed[pathogen] == sim.t)
 
         # If there is a tracing capacity constraint, limit the number of agents that can be traced
         if self.capacity is not None:

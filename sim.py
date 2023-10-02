@@ -197,8 +197,7 @@ class Sim(cvb.BaseSim):
 
         self.initialized   = True
         self.complete      = False
-        self.results_ready = False
-
+        self.results_ready = False 
         return self
 
     def init_stratifications(self):
@@ -510,7 +509,7 @@ class Sim(cvb.BaseSim):
             self.results[f'new_{key}'] = init_res(f'Number of new {label}', color=dcols[key]) # Flow variables -- e.g. "Number of new infections"
 
         self.results['co-infections'] = init_res(f'Number of co-infections')
-        self.results['co-infected_deaths'] = init_res(f'Number of deaths when co-infected')
+        self.results['co-infected_deaths'] = init_res(f'Number of deaths when co-infected') 
 
         return
 
@@ -897,7 +896,7 @@ class Sim(cvb.BaseSim):
             sus = people.p_susceptible[current_pathogen]
             symp = people.p_symptomatic[current_pathogen]
             diag = people.p_diagnosed[current_pathogen]
-            quar = people.quarantined
+            quar = people.quarantined 
             prel_trans = people.rel_trans[current_pathogen]
             prel_sus   = people.rel_sus[current_pathogen]
             
@@ -1637,6 +1636,8 @@ class Sim(cvb.BaseSim):
         for p in range(len(self.pathogens)):
             string += f'   {"":5}Summary of pathogen {self.pathogens[p].label}:\n'
             for key in self.result_keys():
+                if key in ['cum_quarantined']:
+                    continue
                 if full or key.startswith('cum_'): 
                         val = np.round(summary[p][key])
                         string += f'   {val:15,.0f} {self.results[p][key].name.lower()}\n'.replace(',', sep) # Use replace since it's more flexible
@@ -1649,10 +1650,12 @@ class Sim(cvb.BaseSim):
             val = np.round(summary[key]) 
             string += f'   {val:15,.0f} {self.results[key].name.lower()}\n'.replace(',', sep) # Use replace since it's more flexible
         '''
-        
+         
         coinfections = self.results['co-infections']
         coinfections_deaths = self.results['co-infected_deaths']
+        quarantines = self.results['cum_quarantined'][self.t]
         string += f'   {sum(coinfections):15,.0f} cumulative co-infections\n'
+        string += f'   {quarantines:15,.0f} cumulative quarantines started\n'
         #string += f'   {sum(coinfections_deaths):15,.0f} cumulative deaths when co-infected'
         string += '\n'
         # Print or return string

@@ -57,8 +57,10 @@ def make_people(sim, popdict=None, workplaces = None, n_workplaces = None, reset
         elif sim.popfile is None: 
             popdict = parse_bhPopdict_to_ifPopdict(popdict, sim)
      
+        sim.pop_type = 'behaviour_module'
     else:   
         popdict = make_randpop(sim, **kwargs)  #create random population if no population input
+        sim.pop_type = 'random'
             
      
     validate_popdict(popdict, sim.pars, verbose=verbose)

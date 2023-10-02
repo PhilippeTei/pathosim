@@ -63,7 +63,8 @@ class PeopleMeta(sc.prettyobj):
             'income',           # Int
             'cons_days_in_quar',    # Int
             'cons_days_neg_rat',    # Int
-            'is_coinfected'
+            'is_coinfected',
+            'test_pos_path'
         ]
 
         # Set the states that a person can be in: these are all booleans per person -- used in people.py
@@ -148,11 +149,13 @@ class PeopleMeta(sc.prettyobj):
 
         # Set the dates various events took place: these are floats per person -- used in people.py
         self.dates = [f'date_{state}' for state in self.states] # Convert each state into a date
-        self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive
+        self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive 
+        
         self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
 
         
         self.pathogen_dates = [f'date_{state}' for state in self.pathogen_states] # Convert each state into a date, arrays of NxP where N is num of pathogen and P is num of people
+        self.pathogen_dates.append('p_date_pos_test')
         #self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive
         #self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
 

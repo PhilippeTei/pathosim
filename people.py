@@ -100,6 +100,8 @@ class People(cvb.BasePeople):
                 self[key] = np.full(self.pars['pop_size'], False,dtype=bool)
             elif key in ['symp_prob', 'severe_prob',  'crit_prob', 'death_prob','rel_trans', 'rel_sus', 'abs_symp_prob', 'abs_severe_prob', 'abs_crit_prob', 'abs_death_prob']:  
                 self[key] = np.zeros((self.pars['n_pathogens'],self.pars['pop_size']), dtype=cvd.default_float)
+            elif key in ['test_pos_path']:
+                self[key] = np.full(self.pars['pop_size'], 0,dtype=int)
             else:
                 self[key] = np.full(self.pars['pop_size'], np.nan, dtype=cvd.default_float)
         
@@ -705,8 +707,8 @@ class People(cvb.BasePeople):
         '''
 
         # Handle people who tested today who will be diagnosed in future (i.e., configure them to have have finished being tested)
-        test_pos_inds = self.check_inds(self.p_diagnosed[pathogen], self.date_pos_test, filter_inds=None) # Find people who are not diagnosed and have a date of a positive test that is today or earlier
-        self.date_pos_test[test_pos_inds] = np.nan # Clear date of having will-be-positive test
+        test_pos_inds = self.check_inds(self.p_diagnosed[pathogen], self.p_date_pos_test[pathogen], filter_inds=None) # Find people who are not diagnosed and have a date of a positive test that is today or earlier
+        self.p_date_pos_test[pathogen, test_pos_inds] = np.nan # Clear date of having will-be-positive test
         
         test_pos_inds_strat = strat.get_indices_to_track(self.sim, test_pos_inds)
         # Update per variant. (Written 31-05-23)
@@ -731,7 +733,7 @@ class People(cvb.BasePeople):
                 
        
         # Handle people who were actually diagnosed today (i.e., set them as diagnosed and remove any of them that were quarantining from quarantine)
-        diag_inds  = self.check_inds(self.diagnosed, self.date_diagnosed, filter_inds=None) # Find who are not diagnosed and have a date of diagnosis that is today or earlier
+        diag_inds  = self.check_inds(self.p_diagnosed[pathogen], self.date_p_diagnosed[pathogen], filter_inds=None) # Find who are not diagnosed and have a date of diagnosis that is today or earlier
         self.diagnosed[diag_inds]   = True # Set these people to be diagnosed
         self.p_diagnosed[pathogen, diag_inds]   = True # Set these people to be diagnosed
         quarantined = cvu.itruei(self.quarantined, diag_inds) # Find individuals who were just diagnosed who are in quarantine
@@ -748,9 +750,9 @@ class People(cvb.BasePeople):
         for ind,end_day in self._pending_quarantine[self.t]:
             if self.quarantined[ind]: # Update when quarantine should be finished (in case schedule_quarantine is called on someone already in quarantine)
                 self.date_end_quarantine[ind] = max(self.date_end_quarantine[ind], end_day) # Extend quarantine if required
-            elif not (self.dead[ind] or self.recovered[ind] or self.diagnosed[ind]): # Unclear whether recovered should be included here # elif not (self.dead[ind] or self.diagnosed[ind]):
-                self.quarantined[ind] = True
-                print(ind)
+                 
+            if not (self.dead[ind] or self.diagnosed[ind]): # Unclear whether recovered should be included here # elif not (self.dead[ind] or self.diagnosed[ind]):
+                self.quarantined[ind] = True 
                 self.date_quarantined[ind] = self.t
                 self.date_end_quarantine[ind] = end_day
 
@@ -758,7 +760,8 @@ class People(cvb.BasePeople):
                     if ind in self.sim.stratification_indices:
                         n_quarantined += 1
                 else: 
-                    n_quarantined += 1
+                    n_quarantined += 1 
+                         
 
         # If someone on quarantine has reached the end of their quarantine, release them
         end_inds = self.check_inds(~self.quarantined, self.date_end_quarantine, filter_inds=None) # Note the double-negative here (~)
@@ -1495,7 +1498,7 @@ class People(cvb.BasePeople):
                 self.set_overall_state_date(state, n_pathogens, True if state in states_to_merge_with_OR else False) 
             
             self.set_overall_state_date('recovered', n_pathogens, False) 
-
+             
 
                  
   
@@ -1541,9 +1544,11 @@ class People(cvb.BasePeople):
 
         # Store the date the person will be diagnosed, as well as the date they took the test which will come back positive
   
+        self.test_pos_path[final_inds] = pathogen
         self.date_diagnosed[final_inds] = self.t + test_delay
         self.date_p_diagnosed[pathogen, final_inds] = self.t + test_delay
         self.date_pos_test[final_inds] = self.t
+        self.p_date_pos_test[pathogen, final_inds] = self.t
 
         return final_inds
 
