@@ -899,7 +899,8 @@ class Sim(cvb.BaseSim):
             quar = people.quarantined 
             prel_trans = people.rel_trans[current_pathogen]
             prel_sus   = people.rel_sus[current_pathogen]
-            
+            iso  = people.isolated
+
             # Iterate through n_variants to calculate infections. The meat of the simulation. 
             for variant in range(nv):
 
@@ -926,7 +927,7 @@ class Sim(cvb.BaseSim):
                     iso_factor  = cvd.default_float(self['iso_factor'][lkey]) # Effect of isolating. 
                     quar_factor = cvd.default_float(self['quar_factor'][lkey]) # Ex: 0.2. Probably the effect on beta of quarantining. 
                     beta_layer  = cvd.default_float(self['beta_layer'][lkey]) # A scalar; beta for the layer. Ex: 1.0. 
-                    rel_trans, rel_sus = cvu.compute_trans_sus(prel_trans, prel_sus, inf_variant, sus, beta_layer, viral_load[current_pathogen], symp, diag, quar, asymp_factor, iso_factor, quar_factor, sus_imm)
+                    rel_trans, rel_sus = cvu.compute_trans_sus(prel_trans, prel_sus, inf_variant, sus, beta_layer, viral_load[current_pathogen], symp, diag, iso, asymp_factor, iso_factor, quar_factor, sus_imm)
                      
                     rel_trans = p_int.mod_rel_trans(current_pathogen, people.p_exposed, self.n_pathogens, rel_trans, self['Mtrans'])
                     rel_sus = p_int.mod_rel_sus(current_pathogen, rel_sus, people.p_exposed, self['Miimm'], self['Mcimm'], people.sus_imm, self.n_pathogens, self.pars['pop_size'])
@@ -944,11 +945,11 @@ class Sim(cvb.BaseSim):
             # Update counts for this time step: stocks.
             for key in cvd.result_stocks.keys(): 
                 #TODO remove this filtering
-                if key not in ['known_dead', 'quarantined', 'vaccinated']: #SELECTING WHICH STATES ARE CURRENTLY IMPLEMENTED FOR PER PATHOGEN TRACKING 
+                if key not in ['known_dead', 'quarantined', 'vaccinated', 'isolated']: #SELECTING WHICH STATES ARE CURRENTLY IMPLEMENTED FOR PER PATHOGEN TRACKING 
                     self.results[current_pathogen][f'n_{key}'][t] = np.count_nonzero(self.people[f'p_{key}'][current_pathogen][self.stratification_indices])
                 else:
                     self.results[current_pathogen][f'n_{key}'][t] = np.count_nonzero(self.people[key][self.stratification_indices])
-                 
+                   
             for key in cvd.result_stocks_by_variant.keys():
                 for variant in range(nv): 
                     self.results[current_pathogen]['variant'][f'n_{key}'][variant,t] =np.count_nonzero(self.people[f'p_{key}'][current_pathogen,variant,:][self.stratification_indices]) 
@@ -963,7 +964,7 @@ class Sim(cvb.BaseSim):
                 for variant in range(nv):
                     self.results[current_pathogen]['variant'][key][variant][t] += count[variant]
  
-        for key in cvd.new_result_flows:    
+        for key in cvd.new_result_flows:     
             self.results[key][t] += people.flows[key] 
 
 
@@ -1072,7 +1073,7 @@ class Sim(cvb.BaseSim):
         for rname, rstart, rsize in zip(self.rnames, self.rstarts, self.rsizes):
             strat_indices_in_reg = np.intersect1d(self.stratification_indices, np.array((range(rstart,(rstart+rsize)))))
             for key in cvd.result_stocks.keys():
-                if key not in ['known_dead', 'quarantined', 'vaccinated']:
+                if key not in ['known_dead', 'quarantined', 'vaccinated', 'isolated']:
                     self.results[pathogen][f'{rname}_n_{key}'][t] =np.count_nonzero(self.people[f'p_{key}'][pathogen,strat_indices_in_reg])
                 else:
                     self.results[pathogen][f'{rname}_n_{key}'][t] =np.count_nonzero(self.people[key][strat_indices_in_reg]) 
@@ -1298,7 +1299,7 @@ class Sim(cvb.BaseSim):
                 for res in [self.results[p]['cum_infections'], self.results[p]['variant']['cum_infections_by_variant']]: # Include initially infected people
                     res.values += self.results[p]['n_exposed'][0]*self.rescale_vec[0]  
 
-        for key in cvd.result_flows.keys():
+        for key in cvd.result_flows.keys(): 
             self.results[f'cum_{key}'][:] = np.cumsum(self.results[f'new_{key}'][:], axis=0)
        
         for i in range(len(self.results['cum_infections'])):
@@ -1592,7 +1593,7 @@ class Sim(cvb.BaseSim):
             for key in self.result_keys():
                 summary[p][key] = self.results[p][key][t]
 
-        for key in ['cum_infections', 'cum_reinfections', 'cum_infectious','cum_symptomatic', 'cum_severe', 'cum_critical','cum_recoveries', 'cum_deaths']:
+        for key in ['cum_infections', 'cum_reinfections', 'cum_infectious','cum_symptomatic', 'cum_severe', 'cum_isolated', 'cum_critical','cum_recoveries', 'cum_deaths']:
             summary[key] = self.results[key][t]
         # Update the stored state
         if update:
@@ -1636,7 +1637,7 @@ class Sim(cvb.BaseSim):
         for p in range(len(self.pathogens)):
             string += f'   {"":5}Summary of pathogen {self.pathogens[p].label}:\n'
             for key in self.result_keys():
-                if key in ['cum_quarantined']:
+                if key in ['cum_quarantined', 'cum_isolated']:
                     continue
                 if full or key.startswith('cum_'): 
                         val = np.round(summary[p][key])
@@ -1654,7 +1655,9 @@ class Sim(cvb.BaseSim):
         coinfections = self.results['co-infections']
         coinfections_deaths = self.results['co-infected_deaths']
         quarantines = self.results['cum_quarantined'][self.t]
+        iso = self.results['cum_isolated'][self.t]
         string += f'   {sum(coinfections):15,.0f} cumulative co-infections\n'
+        string += f'   {iso:15,.0f} cumulative isolations started\n'
         string += f'   {quarantines:15,.0f} cumulative quarantines started\n'
         #string += f'   {sum(coinfections_deaths):15,.0f} cumulative deaths when co-infected'
         string += '\n'

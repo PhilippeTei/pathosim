@@ -78,6 +78,7 @@ class PeopleMeta(sc.prettyobj):
             'critical',
             'tested',
             'diagnosed',
+            'isolated',
             'recovered',
             'known_dead',
             'dead',
@@ -152,7 +153,7 @@ class PeopleMeta(sc.prettyobj):
         self.dates.append('date_pos_test') # Store the date when a person tested which will come back positive 
         
         self.dates.append('date_end_quarantine') # Store the date when a person comes out of quarantine
-
+        self.dates.append('date_end_isolation') # Store the date when a person comes out of isolation
         
         self.pathogen_dates = [f'date_{state}' for state in self.pathogen_states] # Convert each state into a date, arrays of NxP where N is num of pathogen and P is num of people
         self.pathogen_dates.append('p_date_pos_test')
@@ -218,6 +219,7 @@ result_stocks = {
     'recovered':   'Number recovered',
     'dead':        'Number dead',
     'diagnosed':   'Number of confirmed cases',
+    'isolated':    'Number in isolation',
     'known_dead':  'Number of confirmed deaths',
     'quarantined': 'Number in quarantine',
     'vaccinated':  'Number of people vaccinated',
@@ -240,6 +242,7 @@ result_flows = {
     'deaths':       'deaths',
     'tests':        'tests',
     'diagnoses':    'diagnoses',
+    'isolated':     'isolated people',
     'known_deaths': 'known deaths',
     'quarantined':  'quarantines started',
     'doses':        'vaccine doses',
@@ -356,6 +359,7 @@ def get_default_colors():
     c.pop_nabs              = '#32733d'
     c.pop_protection        = '#9e1149'
     c.pop_symp_protection   = '#b86113'
+    c.isolated              = '#9756ff',
     c.alerted               = '#c55d28' # Desert orange
     c.alerts_tp             = '#ffff00' # Yellow
     c.alerts_fn             = '#ff0000' # Red
