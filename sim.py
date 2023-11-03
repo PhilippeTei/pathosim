@@ -508,8 +508,7 @@ class Sim(cvb.BaseSim):
         for key,label in cvd.result_flows.items(): # Repeat to keep all the cumulative keys together
             self.results[f'new_{key}'] = init_res(f'Number of new {label}', color=dcols[key]) # Flow variables -- e.g. "Number of new infections"
 
-        self.results['co-infections'] = init_res(f'Number of co-infections')
-        self.results['co-infected_deaths'] = init_res(f'Number of deaths when co-infected') 
+        self.results['co-infections'] = init_res(f'New co-infections', color = '#000000') 
 
         return
 
@@ -1226,13 +1225,7 @@ class Sim(cvb.BaseSim):
             self.finalize(verbose=verbose, restore_pars=restore_pars)
             sc.printv(f'Run finished after {elapsed:0.2f} s.\n', 1, verbose)
         
-        # print("DEBUG: SMARTWATCH ALERT PROBS 4")
-        # final_probs = []
-        # for day in np.arange(-21, 22, 1):
-        #     final_probs.append(self.people.sum_alert_on_day[day]/(self.people.sum_people_on_day[day] + 1e-6))
-        # print(final_probs)
-        #### END DEBUG
-
+ 
         return self
 
     def validate_people_states(self):
@@ -1644,16 +1637,8 @@ class Sim(cvb.BaseSim):
                         string += f'   {val:15,.0f} {self.results[p][key].name.lower()}\n'.replace(',', sep) # Use replace since it's more flexible
             string += '\n'
 
-        '''string += f'   {"":5}OVERALL SUMMARY [Placeholder, Requires Fixing For Multi-Pathogen Simulations]:\n'
- 
          
-        for key in ['cum_infections', 'cum_reinfections', 'cum_infectious','cum_symptomatic', 'cum_severe', 'cum_critical','cum_recoveries', 'cum_deaths']: 
-            val = np.round(summary[key]) 
-            string += f'   {val:15,.0f} {self.results[key].name.lower()}\n'.replace(',', sep) # Use replace since it's more flexible
-        '''
-         
-        coinfections = self.results['co-infections']
-        coinfections_deaths = self.results['co-infected_deaths']
+        coinfections = self.results['co-infections'] 
         quarantines = self.results['cum_quarantined'][self.t]
         iso = self.results['cum_isolated'][self.t]
         string += f'   {sum(coinfections):15,.0f} cumulative co-infections\n'

@@ -3,7 +3,16 @@ import math
 
 def mod_rel_trans(current_pathogen, p_exposed, n_pathogens, rel_trans, Mtrans):  
     '''
-    Updates rel_trans based on current co-infection: updated_rel_trans(Pi)= rel_trans(Pi)*Mtrans[i,j]
+    Function that updates relative transmissibility rel_trans of the people based on current co-infection.
+
+    Parameters:
+        current_pathogen(int) = index of the pathogen co-infecting
+        p_exposed(bool 2D array) = Array of whether or not a person at index j has been exposed to the pathogen with index i.
+        n_pathogen(int) = number of pathogens in the simulation
+        rel_trans(float array) = current relative transmissibilities of the people (float array of size # people) against the pathogen with index current_pathogen.
+        Mtrans(float matrix) = matrix of relative transmissibility change due to co-infection
+
+
     '''
 
     if n_pathogens == 1:
@@ -20,8 +29,17 @@ def mod_rel_trans(current_pathogen, p_exposed, n_pathogens, rel_trans, Mtrans):
 
 def mod_rel_sus(current_pathogen, rel_sus, p_exposed, Miimm, Mcimm, people_sus_imm, n_pathogens, pop_size):
     '''
-    Upon exposure to Pi we recalculate rel_sus(Pi) based on ongoing & previous infection
-    to account for innate immune response & cross immunity
+    Function that updates relative susceptibility rel_sus of the people based on current co-infection.
+
+    Parameters:
+        current_pathogen(int) = index of the pathogen co-infecting
+        rel_sus(float array) = current relative susceptibilities of the people (float array of size # people) against the pathogen with index current_pathogen.
+        p_exposed(bool 2D array) = Array of whether or not a person at index j has been exposed to the pathogen with index i.
+        Miimm(float matrix) = matrix of change in relative susceptibility due to innate immunity
+        Mcimm(float matrix) = matrix of change in relative susceptibility due to cross-immunity
+        people_sus_imm(float matrix) = reduction in susceptibility due to current immunity matrix as a scale from 0-1.
+        n_pathogen(int) = number of pathogens in the simulation
+        pop_size(int) = population size
     '''
 
     if n_pathogens == 1:
@@ -50,6 +68,10 @@ def mod_rel_sus(current_pathogen, rel_sus, p_exposed, Miimm, Mcimm, people_sus_i
     return rel_sus
 
 def get_disease_traj_alpha(pi, pj, Msev): 
+    '''
+    Function that computes the alpha factor used in modification of disease trajectory due to co-infection. 
+    Detailed explanation of the use of alpha and this system is outlined in the documentation.
+    '''
     p_s_pi = pi
     p_s_pj = pj
     Msev_ij = Msev

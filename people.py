@@ -357,20 +357,13 @@ class People(cvb.BasePeople):
             self.flows[pathogen]['new_known_deaths']  += new_known_deaths
             
              
-        #update flows for overall people state
-         
+        #update flows for overall people state [still in development] 
         self.flows['new_infectious']    += len(strat.get_indices_to_track(self.sim, self.check_inds(self.infectious, self.date_infectious, filter_inds=mexp)))
-        self.flows['new_symptomatic']   +=len(strat.get_indices_to_track(self.sim, self.check_inds(self.symptomatic, self.date_symptomatic, filter_inds=mexp)))
-    
-        self.flows['new_severe']        += len(strat.get_indices_to_track(self.sim,self.check_inds(self.severe, self.date_severe, filter_inds=mexp)))
-
-        self.flows['new_critical']      += len(strat.get_indices_to_track(self.sim,self.check_inds(self.critical, self.date_critical, filter_inds=mexp)))
-       
-  
-        self.flows['new_recoveries']    += len(strat.get_indices_to_track(self.sim,self.check_inds(self.recovered, self.date_recovered, filter_inds=mexp)))
-        
-        self.check_exit_iso()
-
+        self.flows['new_symptomatic']   +=len(strat.get_indices_to_track(self.sim, self.check_inds(self.symptomatic, self.date_symptomatic, filter_inds=mexp))) 
+        self.flows['new_severe']        += len(strat.get_indices_to_track(self.sim,self.check_inds(self.severe, self.date_severe, filter_inds=mexp))) 
+        self.flows['new_critical']      += len(strat.get_indices_to_track(self.sim,self.check_inds(self.critical, self.date_critical, filter_inds=mexp))) 
+        self.flows['new_recoveries']    += len(strat.get_indices_to_track(self.sim,self.check_inds(self.recovered, self.date_recovered, filter_inds=mexp))) 
+        self.check_exit_iso() 
         self.flows['new_deaths']        +=  new_total_deaths
         self.flows['new_known_deaths']  += new_total_known_deaths
         
@@ -1198,17 +1191,7 @@ class People(cvb.BasePeople):
         self.x_p3[pathogen_index,inds] = np.maximum(time_recovered[inds], self.x_p2[pathogen_index,inds])
         self.y_p3[pathogen_index,inds] = 6
           
-        #self.sim.results['co-infected_deaths'][self.t] += len(self.is_coinfected[dead_inds].nonzero()[0])
-            # # For testing purposes
-            # if self.t < self.pars['x_p1'].shape[1]:
-            #     self.pars['x_p1'][:, self.t] = self.x_p1
-            #     self.pars['x_p_inf'][:, self.t] = self.x_p_inf
-            #     self.pars['x_p2'][:, self.t] = self.x_p2
-            #     self.pars['x_p3'][:, self.t] = self.x_p3
-            #     self.pars['y_p1'][:, self.t] = self.y_p1
-            #     self.pars['y_p_inf'][:, self.t] = self.y_p_inf
-            #     self.pars['y_p2'][:, self.t] = self.y_p2
-            #     self.pars['y_p3'][:, self.t] = self.y_p3
+         
         # Handle immunity aspects
         if self.pars['pathogens'][pathogen_index].use_nab_framework: 
             symp = dict(asymp=asymp_inds, mild=mild_inds, sev=sev_inds)
@@ -1219,13 +1202,11 @@ class People(cvb.BasePeople):
         return n_infections # For incrementing counters
      
     def recalculate_disease_trajectory(self, index, pathogen_index, variant, Msev_by_ind, Mdur_by_ind, pathogen_coinfecting):
-    
-        #self.print_disease_trajectory(index, pathogen_index)
-        #print(self.t - self.date_p_exposed[pathogen_index, index])
-        #self.print_disease_trajectory(index, pathogen_index)
-        #identify which states are in the past
-        #Infectious Symptomatic Severe Critical Dead
-        # Deal with variant parameters
+        '''
+        Recalculate the disease trajectory to account for co-infecting pathogen.
+        Called in infect() function when for every person already infected by a pathogen.
+        '''
+
         variant_keys = ['rel_symp_prob', 'rel_severe_prob', 'rel_crit_prob', 'rel_death_prob']
         infect_pars = {
            'rel_symp_prob':self.pars['pathogens'][pathogen_index].rel_symp_prob,
@@ -1243,8 +1224,7 @@ class People(cvb.BasePeople):
          
         durpars      = self.pars['pathogens'][pathogen_index].dur
            
-        # Calculate how long before this person can infect other people
-
+        # Calculate how long before this person can infect other people 
         #Update duration spent in each state
         if self.date_p_exposed[pathogen_index, index] + self.dur_exp2inf[pathogen_index, index] > self.t: #where in exposed state still
             

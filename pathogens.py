@@ -7,7 +7,11 @@ from . import interventions as itvs
 
 __all__ = ['Pathogen', 'SARS_COV_2']
 
-class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
+class Pathogen(sc.prettyobj):    
+    '''
+    Base class of a pathogen. Used by SARS_COV_2.
+    Contains all parameters that are pathogen specific.
+    '''
 
     def __init__(self, pop_infected, label = "New_Pathogen"): 
         
@@ -43,6 +47,16 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
     def add_custom_variant(self, label = "custom", days = 0, n_imports = 10, rel_beta = 1.0, rel_symp_prob = 1.0, rel_severe_prob = 1.0, rel_crit_prob = 1.0, rel_death_prob = 1.0):
         '''
         Add a custom variant to the pathogen and configure its parameters
+
+        Parameters:
+            days(int) = day on which the variant is introduced
+            n_imports(int) = number of infection on the day it is introduced
+            rel_beta(float) = relative beta of variant
+            rel_symp_prob(float) = relative symptomatic probability of variant
+            rel_severe_prob(float) = relative severe probability of variant
+            rel_crit_prob(float) = relative critical probability of variant
+            rel_death_prob(float) = relative death probability of variant
+
         '''
         params = {
             "rel_beta": rel_beta,
@@ -57,13 +71,25 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
     
     def add_existing_variant(self, name = "wild", days = 10, n_imports = 10): 
         '''
-        Add a variant to the pathogen that is already pre-configured
+        Function to add a variant to the pathogen that is already pre-configured
+
+        Parameters:
+            name (string) = name of variant that is pre-configured
+            days (int) = days at which variant is introduced
+            n_imports(int) = number of infection on the day it is introduced 
         '''
         variant  = self.Variant(name, days=days, n_imports=n_imports, base_pathogen = self)
         self.variants.append(variant) 
         return
 
     def configure_variant_cross_immunity(self, cross_immunity_dict): 
+        '''
+        Function to configure the cross-variant immunity of the variants of a pathogen. Called after the creation of all variants.
+
+        Parameters: 
+            cross_immunity_dict(dict) = dictionary of cross-variant immunity
+
+        '''
         self.make_variant_cross_immunity_matrix(False) #init and fill self.default_variant_cross_immunity with 1s
  
         for key in cross_immunity_dict.keys():
@@ -71,6 +97,17 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
                 self.default_variant_cross_immunity[key][k] = cross_immunity_dict[key][k] 
 
     def configure_transmission(self, beta_dist = None, viral_dist= None, beta= None, asymp_factor= None, viral_levels= None):
+        '''
+        Function to configure transmission parameters of a pathogen.
+
+        Parameters: 
+            beta_dist(dict) = Distribution to draw individual level transmissibility.
+            viral_dist(dict) = The time varying viral load (transmissibility).
+            beta(float) = Beta per symptomatic contact; absolute
+            asymp_factor(float) = Multiply beta by this factor for asymptomatic cases; no statistically significant difference in transmissibility for SARS-CoV-2 so value is 1 by default.
+            viral_levels(dict) = Specifies the range within which viral load should be scaled so it can contribute to relative transmissibility
+
+        '''
         if beta_dist is not None: 
             self.beta_dist    = beta_dist
         if viral_dist is not None:
@@ -105,11 +142,27 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
             self.dur['crit2die'] = crit2die
 
     def configure_prognoses(self, prognoses, prog_by_age = True): 
+        '''
+        Function to configure prognoses of a pathogen.
+
+        Parameters:
+            prognoses(dict): prognoses
+            prog_by_age(dict): weather the prognoses passed as a parameter are age-specific.
+        '''
         self.prog_by_age      = prog_by_age 
         for key in prognoses.keys():
             self.prognoses[key] = prognoses[key]
 
     def configure_generalized_immunity(self, min_immunity = 0, max_immunity = 1, duration_to_min_immunity = 180, duration_to_max_immunity = 14):
+        '''
+        Function to configure the immunity of the pathogen given that it uses the generalized system of immunity instead of the neutralizing antibodies immunity model.
+
+        Parameters:
+            imm_peak(float) = Immunity undergoes exponential growth, reaching a predetermined peak at this value. Range: [0-1].
+            imm_final_value(float) = Following recovery, the immunity gradually decays using a sigmoid-like function, ultimately stabilizing at this value. Range: [0-1].
+            imm_days_to_peak(int) = Number of days after infection on which immunity reaches its maximum value (peak).
+            imm_days_to_final_value(int) = Number of days it takes for immunity to decay to imm_final_value after recovery.
+        '''
         self.use_nab_framework = False
         self.imm_peak = max_immunity
         self.imm_final_value = min_immunity
@@ -240,8 +293,13 @@ class Pathogen(sc.prettyobj):    #PATHOGEN BASE CLASS
         return labels
 
     def make_variant_cross_immunity_matrix(self, init_arrays = True):
-        '''Adds any missing cross-variant immunity values in the dictionariy self.variant_cross_immunity, 
-        assuming complete cross-immunity between variants as a default (default value of 1)'''
+        '''
+        Adds any missing cross-variant immunity values in the dictionariy self.variant_cross_immunity, 
+        assuming complete cross-immunity between variants as a default (default value of 1)
+
+        Parameters:
+            init_arrays(bool) = whether or not to initialize the self.immunity matrix.
+        '''
 
         variant_labels = ['wild']
         for v in self.variants:

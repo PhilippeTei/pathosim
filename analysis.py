@@ -11,8 +11,7 @@ import sciris as sc
 from . import utils as cvu
 from . import misc as cvm
 from . import interventions as cvi
-from . import plotting as cvpl
-from . import run as cvr
+from . import plotting as cvpl 
 from .settings import options as cvo # For setting global options
 
 

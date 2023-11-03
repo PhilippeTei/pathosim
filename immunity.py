@@ -30,6 +30,7 @@ def update_peak_nab(people, inds, nab_pars, symp=None, pathogen = 0):
         inds: Array of people indices
         nab_pars: Parameters from which to draw values for quantities like ['nab_init'] - either sim pars (for natural immunity) or vaccine pars
         symp: either None (if NAbs are vaccine-derived), or a dictionary keyed by 'asymp', 'mild', and 'sev' giving the indices of people with each of those symptoms
+        pathogen: index of the pathogen that we are modifying immunity of
 
     Returns: None
     '''
@@ -94,7 +95,7 @@ def update_nab(people, inds, pathogen):
  
 def update_imm(people, inds, pathogen, min_imm, max_imm, days_to_min, days_to_max):
     '''
-    Step imm levels forward in time
+    Step imm levels forward in time (for pathogens using the generalized immunity system)
     '''  
     people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['decay_start_date'][pathogen],  people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people.t, people['growth_start_date'][pathogen],  people['curr_min'][pathogen],  people.imm_level[pathogen],inds,min_imm[pathogen], max_imm[pathogen],days_to_min[pathogen],days_to_max[pathogen])
     return
@@ -454,11 +455,13 @@ def linear_growth(length, slope):
 
 @nb.njit()
 def immunity_growth_function(x, min, max, peak_t):
+    '''Calculate immunity growth function for generalized immunity system'''
     y = (max-min) / np.exp(peak_t) * (np.exp(x)-1)  + min
     return y
 
 @nb.njit()
 def immunity_decay_function(x, min, max, min_t): # https://en.wikipedia.org/wiki/Non-analytic_smooth_function#Smooth_transition_functions
+    '''Calculate immunity decay function for generalized immunity system'''
     a = exponeover(x/min_t)
     y = (max-min) * (1 - a / ( a + exponeover(1-(x/min_t)))) + min
     return y

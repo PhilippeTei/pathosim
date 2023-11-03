@@ -535,7 +535,7 @@ __all__+= ['change_beta', 'clip_edges']
 class change_beta(Intervention):
     '''
     The most basic intervention -- change beta (transmission) by a certain amount
-    on a given day or days. This can be used to represent physical distancing (although
+    on a given day or days for a given pathogen. This can be used to represent physical distancing (although
     clip_edges() is more appropriate for overall changes in mobility, e.g. school
     or workplace closures), as well as hand-washing, masks, and other behavioral
     changes that affect transmission rates.
@@ -544,12 +544,13 @@ class change_beta(Intervention):
         days    (int/arr):   the day or array of days to apply the interventions
         changes (float/arr): the changes in beta (1 = no change, 0 = no transmission)
         layers  (str/list):  the layers in which to change beta (default: all)
+        pathogen (int): the index of the pathogen to change the beta of
         kwargs  (dict):      passed to Intervention()
 
     **Examples**::
 
-        interv = cv.change_beta(25, 0.3) # On day 25, reduce overall beta by 70% to 0.3
-        interv = cv.change_beta([14, 28], [0.7, 1], layers='s') # On day 14, reduce beta by 30%, and on day 28, return to 1 for schools
+        interv = cv.change_beta(25, 0.3, 0) # On day 25, reduce overall beta by 70% to 0.3 for pathogen at index 0 
+        interv = cv.change_beta([14, 28], [0.7, 1], layers='s', 1) # On day 14, reduce beta by 30%, and on day 28, return to 1 for schools; for pathogen at index 1 
     '''
 
     def __init__(self, days, changes, layers=None, pathogen = 0, **kwargs):
@@ -736,6 +737,7 @@ class test_num(Intervention):
         start_day   (int)   : day the intervention starts (default: 0, i.e. first day of the simulation)
         end_day     (int)   : day the intervention ends
         swab_delay  (dict)  : distribution for the delay from onset to swab; if this is present, it is used instead of test_delay
+        pathogen    (int)   : index of the pathogen which the testing is for
         kwargs      (dict)  : passed to Intervention()
 
     **Examples**::
@@ -883,6 +885,7 @@ class test_prob(Intervention):
         start_day        (int)       : day the intervention starts (default: 0, i.e. first day of the simulation)
         end_day          (int)       : day the intervention ends (default: no end)
         swab_delay       (dict)      : distribution for the delay from onset to swab; if this is present, it is used instead of test_delay
+        pathogen         (int)       : index of the pathogen the testing is for
         kwargs           (dict)      : passed to Intervention()
 
     **Examples**::
@@ -1010,7 +1013,7 @@ class contact_tracing(Intervention):
         presumptive (bool):       whether or not to begin isolation and contact tracing on the presumption of a positive diagnosis (default: no)
         capacity    (int):        optionally specify a maximum number of newly diagnosed people to trace each day
         quar_period (int):        number of days to quarantine when notified as a known contact. Default value is ``pars['quar_period']``
-        pathogens (array int): list of indices of pathogens to trace contacts when positive.
+        pathogens   (array int):  list of indices of pathogens to trace contacts when positive.
         kwargs      (dict):       passed to Intervention()
 
     **Example**::
@@ -1174,6 +1177,7 @@ class notify_contacts(Intervention):
         end_day     (int):        intervention end day (default: no end)
         presumptive (bool):       whether or not to begin isolation and contact tracing on the presumption of a positive diagnosis (default: no)
         capacity    (int):        optionally specify a maximum number of newly diagnosed people to trace each day
+        pathogens   (int/array)   list of indices of the pathogen to trace contacts for
         kwargs      (dict):       passed to Intervention()
 
     **Example**::
@@ -1317,7 +1321,7 @@ class notify_contacts(Intervention):
 
 __all__+= ['simple_vaccine', 'BaseVaccination_generic', 'BaseVaccination_cov', 'vaccinate', 'vaccinate_prob', 'vaccinate_num_cov', 'vaccinate_num_generic']
 
-
+#Depricated
 class simple_vaccine(Intervention):
     '''
     Apply a simple vaccine to a subset of the population. In addition to changing the
@@ -1417,7 +1421,7 @@ class simple_vaccine(Intervention):
 
 class BaseVaccination_cov(Intervention):
     '''
-    Apply a vaccine to a subset of the population.
+    Apply a vaccine to a subset of the population. Works with pathogens that uses the Nabs system (only SARS-CoV-2 for now).
 
     This base class implements the mechanism of vaccinating people to modify their immunity.
     It does not implement allocation of the vaccines, which is implemented by derived classes
@@ -1667,6 +1671,7 @@ class BaseVaccination_cov(Intervention):
 class BaseVaccination_generic(Intervention):
     '''
     Apply a vaccine to a subset of the population.
+    Works for any pathogen using the generalized immunity system (not(pathogen.use_nabs_framework)) (any pathogen other than SARS-CoV-2 for now).
 
     This base class implements the mechanism of vaccinating people to modify their immunity.
     It does not implement allocation of the vaccines, which is implemented by derived classes
@@ -1684,15 +1689,16 @@ class BaseVaccination_generic(Intervention):
 
     Args:
         vaccine (dict/str) : dict parameters
-        label   (str)      : if vaccine is supplied as a dict, the name of the vaccine
-        booster (boolean)  : whether the vaccine is a booster, i.e. whether vaccinated people are eligible
+        pathogen (int)     : index of pathogen the vaccine is for
+        label   (str)      : if vaccine is supplied as a dict, the name of the vaccine 
+        pathogen (int)     : index of pathogen vaccine is against
         kwargs  (dict)     : passed to Intervention()
 
-    If ``vaccine`` is supplied as a dictionary, it must have the following parameters:
-
-        EITHER
+    If ``vaccine`` is supplied as a dictionary, it must have the following parameters: 
         - ``imm_peak`` 
         - ``imm_time_to_peak` 
+        - ``imm_final_value` 
+        - ``imm_time_to_final_value` 
           
     See ``parameters.py`` for additional examples of these parameters.
 
@@ -2041,34 +2047,13 @@ class vaccinate_num_generic(BaseVaccination_generic):
     '''
     This vaccine intervention allocates vaccines in a pre-computed order of
     distribution, at a specified rate of doses per day. Second doses are prioritized
-    each day.
+    each day. Vaccines for pathogens using the generalized immunity system. 
 
-    Args:
-        vaccine (dict/str): which vaccine to use; see below for dict parameters
-        label        (str): if vaccine is supplied as a dict, the name of the vaccine
-        booster    (bool): whether it's a booster (i.e. targeted to vaccinated people) or not
-        subtarget  (dict): subtarget intervention to people with particular indices (see test_num() for details)
-        sequence: Specify the order in which people should get vaccinated. This can be
+    Example:
+    vax_pars = dict(imm_peak = 1,imm_time_to_peak = 5, imm_time_to_final_value = 250, imm_final_value = 0.5) 
+    vx = inf.vaccinate_num_generic(vax_pars, 300, False,None, None, 1)  #SPECIFY WHICH PATHOGEN THE VACCINE IS FOR (index in the list of pathogens passed to sim), here the vaccine is for pathogen with index 1, that uses generic immunity
 
-            - An array of person indices in order of vaccination priority
-            - A callable that takes in `cv.People` and returns an ordered sequence. For example, to
-              vaccinate people in descending age order, ``def age_sequence(people): return np.argsort(-people.age)``
-              would be suitable.
-            - The shortcut 'age', which does prioritization by age (see below for implementation)
-              If not specified, people will be randomly ordered.
-        num_doses: Specify the number of doses per day. This can take three forms
-
-            - A scalar number of doses per day
-            - A dict keyed by day/date with the number of doses e.g. ``{2:10000, '2021-05-01':20000}``.
-              Any dates are converted to simulation days in `initialize()` which will also copy the
-              dictionary passed in.
-            - A callable that takes in a ``cv.Sim`` and returns a scalar number of doses. For example,
-              ``def doses(sim): return 100 if sim.t > 10 else 0`` would be suitable
-        **kwargs: Additional arguments passed to ``cv.BaseVaccination``
-
-    **Example**::
-        pfizer = cv.vaccinate_num(vaccine='pfizer', sequence='age', num_doses=100)
-        cv.Sim(interventions=pfizer, use_waning=True).run().plot()
+    sim = inf.Sim(pop_size=pop_size, n_days=n_days, pathogens = [path2, covid], interventions = [vx],  rand_seed = 1)  
     '''
 
     def __init__(self, vaccine, num_doses, booster=False, subtarget=None, sequence=None, pathogen = 0, **kwargs):

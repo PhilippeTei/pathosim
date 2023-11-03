@@ -9,7 +9,8 @@ import functools
  
 def get_indices_to_track(sim, indices):
     '''
-    Checks if result needs stratification
+        Returns the list of indices of the people to track results for 
+        (satisfying the stratification constraints set by passing a constraint dict to the Sim object, which is parsed by stratify.set_stratified_indices)
     '''
     if not sim.pars['enable_stratifications']:  
         return indices
@@ -23,10 +24,10 @@ def set_stratified_indices(indices, constraint, sim):
         Function to that parses constraint and chooses which indices to track results for results in result_keys_to_stratify, 
         based on if a person's attributes satisfy the constraint condition 
 
-        Args: 
-        result_keys_to_stratify: list of keys of results that you want to be stratified 
-        attributes: Dictionary where keys are the names of attributes (e.g. sim.people.age), and values are lists or arrays of these attributes for each person.
-        constraints: List of strings representing the constraints.
+        Parameters: 
+        sim(Sim) = A reference to the simulation class.
+        indices(array of int) = indices of the list of people to track a certain results prior to filtering which people have characteristics which satisfy the stratification constraints.
+
          
         Example to stratify some results: 
              
