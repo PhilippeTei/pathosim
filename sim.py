@@ -31,7 +31,8 @@ from . import pathogens as pat
 from .settings import options as cvo
 from. import stratify as strat
 from. import pathogen_interactions as p_int
-#from active_population_sampling import Results as aps_results
+#from. import active_population_sampling_program as aps
+from. import active_population_sampling as aps
 
 # Almost everything in this file is contained in the Sim class
 __all__ = ['Sim', 'diff_sims', 'demo', 'AlreadyRunError']
@@ -84,8 +85,9 @@ class Sim(cvb.BaseSim):
         self._orig_pars    = None     # Store original parameters to optionally restore at the end of the simulation 
         self.initialized_pathogens = False
         self.TestScheduler = None 
-        self.active_population_surveillance = False # Whether or not to keep track of peoples IgG levels over the course of a simulation 
-        self.aps_program = None # An active population sampling object 
+        self.active_surveillance_pars = None # Whether or not to keep track of peoples IgG levels over the course of a simulation 
+        self.aps_programs = None # A list of active population sampling object 
+        self.b = 0 #y-int 
 
         # Make default parameters (using values from parameters.py)
         default_pars = cvpar.make_pars(version=version) # Start with default pars
@@ -171,6 +173,7 @@ class Sim(cvb.BaseSim):
         self.init_pathogen_interactions() #Validate pathogen-pathogen matrices
         self.init_immunity() # initialize information about immunity (if use_waning=True)
         self.init_results() # After initializing the variant, create the results structure
+        self.init_surveillance_pars() # Initialize the serosurveillance parameters
 
         if self.pars['enable_smartwatches']:
             self.init_people(reset=reset, init_infections=init_infections, smartwatch_pars=self.pars['smartwatch_pars'], **kwargs) # Create all the people (the heaviest step)
@@ -191,14 +194,27 @@ class Sim(cvb.BaseSim):
         self.set_seed() # Reset the random seed again so the random number stream is consistent
          
 
-        #if self.active_population_surveillance == True: 
-            #Initialize a results object to track the IgG levels in the population 
-            #IgG_tracking = aps_results.Results()
+        if self['active_surveillance_pars']: #Creates list of active surveillance objects with dictionary of pars
+            self.aps_programs = {}
+
+            for program in self['active_surveillance_pars']:
+                program_name = program.get('program_name', 'default_name')
+                aps_program = aps.active_population_sampling_program(self.people, **program)
+                self.aps_programs[program_name] = aps_program
+
+            
+        #initialize y-intercept for the simulation based on slope conversion 
+        conversion_factor = 69.13 #slope
+        adjusted_slope = conversion_factor * self.people.IgG_conversion_slope
+        x, y = 1, 90 #pivot point
+        self.b = y - x*adjusted_slope
 
         self.initialized   = True
         self.complete      = False
         self.results_ready = False 
+
         return self
+
 
     def init_stratifications(self):
 
@@ -397,9 +413,36 @@ class Sim(cvb.BaseSim):
                             self.pars[key][i][j] = 0.001
                 
                 self[key] = np.matrix(self.pars[key])
-                 
-        
 
+
+    def init_surveillance_pars(self):
+        '''
+        Initialize the surveillance parameters.
+        '''
+        self['active_surveillance_pars'] = self.pars['active_surveillance_pars']
+
+    """
+    def add_active_surveillance_pars(self, program_pars):
+        
+        Add an entry to the active surveillance programs.
+
+        Args:
+            program_pars (dict or list): The parameters for the surveillance program(s).
+        
+        if 'active_surveillance_pars' not in self.pars:
+            self.pars['active_surveillance_pars'] = []
+        
+        if isinstance(program_pars, list):
+            for single_program_pars in program_pars:
+                #program_name = single_program_pars.get('program_name', 'default_name')  # Use a default name if not provided
+                self.pars['active_surveillance_pars'].append(single_program_pars)
+        elif isinstance(program_pars, dict):
+            #program_name = program_pars.get('program_name', 'default_name')  # Use a default name if not provided
+            self.pars['active_surveillance_pars'].append(program_pars)
+        else:
+            raise ValueError("Invalid input format for program_pars. Should be a dict or a list of dicts.")
+        
+    """
 
 
     def init_results(self):
@@ -473,7 +516,7 @@ class Sim(cvb.BaseSim):
             #IgG Level Results: The result for each day is kept in an array len = num_days +1 which contains an array of 
             #people's IgG levels in the population at each day 
             self.results[i]['IgG_level'] = np.full(((self.pars['n_days'] +1), self.pars['pop_size']), 0, dtype = int)
-        
+            self.results[i]['pop_IgG']            = init_res('Population IgG levels', scale=False)
         
             # TODO: Need to check this with Andrew. Discussion. 
             self.results[i]['new_diagnoses_custom']      = init_res('Number of new diagnoses with custom testing module')
@@ -508,7 +551,8 @@ class Sim(cvb.BaseSim):
         for key,label in cvd.result_flows.items(): # Repeat to keep all the cumulative keys together
             self.results[f'new_{key}'] = init_res(f'Number of new {label}', color=dcols[key]) # Flow variables -- e.g. "Number of new infections"
 
-        self.results['co-infections'] = init_res(f'New co-infections', color = '#000000') 
+        self.results['co-infections'] = init_res(f'Number of co-infections')
+        self.results['co-infected_deaths'] = init_res(f'Number of deaths when co-infected')
 
         return
 
@@ -926,7 +970,7 @@ class Sim(cvb.BaseSim):
                     iso_factor  = cvd.default_float(self['iso_factor'][lkey]) # Effect of isolating. 
                     quar_factor = cvd.default_float(self['quar_factor'][lkey]) # Ex: 0.2. Probably the effect on beta of quarantining. 
                     beta_layer  = cvd.default_float(self['beta_layer'][lkey]) # A scalar; beta for the layer. Ex: 1.0. 
-                    rel_trans, rel_sus = cvu.compute_trans_sus(prel_trans, prel_sus, inf_variant, sus, beta_layer, viral_load[current_pathogen], symp, diag, iso, asymp_factor, iso_factor, quar_factor, sus_imm)
+                    rel_trans, rel_sus = cvu.compute_trans_sus(prel_trans, prel_sus, inf_variant, sus, beta_layer, viral_load[current_pathogen], symp, diag, quar, asymp_factor, iso_factor, quar_factor, sus_imm)
                      
                     rel_trans = p_int.mod_rel_trans(current_pathogen, people.p_exposed, self.n_pathogens, rel_trans, self['Mtrans'])
                     rel_sus = p_int.mod_rel_sus(current_pathogen, rel_sus, people.p_exposed, self['Miimm'], self['Mcimm'], people.sus_imm, self.n_pathogens, self.pars['pop_size'])
@@ -971,14 +1015,31 @@ class Sim(cvb.BaseSim):
             # Update nab, immunity and IgG for this time step
             #if self['use_waning']: 
             if self.pathogens[current_pathogen].use_nab_framework: 
+                # Do math to calculate current IgG, get current nab levels from t-1 
+                inds_alive = cvu.false(people.dead)
+                inds_with_nabs = inds_alive[cvu.true(people.nab[current_pathogen, inds_alive])]
+                curr_nabs = people['nab'][0][inds_with_nabs]
                 has_nabs = cvu.true(people.peak_nab[current_pathogen])
                 if len(has_nabs):
                     cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
-                cvimm.update_IgG(people, current_pathogen)
+                    
+                    #Now with new nab levels (t), calculate the ratio from the previous nab level
+                    new_nabs = people['nab'][0][inds_with_nabs]
+                    ratio = new_nabs/curr_nabs
+
+                    #get the y-intercept, the attribute self.b
+
+                    #Use this ratio with the current IgG level to update the next IgG level
+                    curr_IgG = people['IgG_level'][inds_with_nabs]
+                    cvimm.update_IgG(people, inds_with_nabs, ratio, self.b, curr_IgG, self.t)
+                   
+
+
+                
             else:
                 has_imm = np.where(people.imm_level[current_pathogen] > 0)
-                if len(has_imm): 
-                    cvimm.update_imm(people, has_imm[0], current_pathogen, self.people['imm_min'],  self.people['imm_peak'],  self.people['decay_rate'], self.people['growth_rate'])
+                if len(has_imm):
+                    cvimm.update_imm(people, has_imm[0], current_pathogen, self.pathogens[current_pathogen].imm_final_value, self.pathogens[current_pathogen].imm_peak, self.pathogens[current_pathogen].imm_days_to_final_value, self.pathogens[current_pathogen].imm_days_to_peak)
         
 
         for current_pathogen in range(len(self.pathogens)): 
@@ -993,7 +1054,12 @@ class Sim(cvb.BaseSim):
              
             self.results[current_pathogen]['pop_nabs'][t]            = np.sum(people.nab[current_pathogen, inds_with_nabs])/len(inds_alive_nabs)
             self.results[current_pathogen]['pop_imm'][t]            = np.sum(people.imm_level[current_pathogen,inds_with_imm ])/len(inds_alive_imm)
-             
+            #print("nab")
+            #print(self.results[current_pathogen]['pop_nabs'][t])
+            self.results[current_pathogen]['pop_IgG'][t]            = np.sum(people.IgG_level[inds_with_nabs])/len(inds_alive_nabs)
+            #print("igg")
+            #print(self.results[current_pathogen]['pop_IgG'][t])
+
             if self.enable_stratifications:
                 sus_imm_mean = 0
                 for i in range(len(people.sus_imm[current_pathogen])):
@@ -1030,18 +1096,27 @@ class Sim(cvb.BaseSim):
 
         #Look for active population surveillance 
         #NEED TO TEST STILL
-        if self.active_population_surveillance: # should also maybe have a condition if there are multiple
-            if isinstance(self.aps_program.time, list): # it is a cross-sectional study 
-                if len(self.aps_program.time) > 0: #if sampling periods list is not empty 
-                    period = self.aps_program.time[0] #specify which period we will be sampling in 
-                    if self.t >= period[0] and self.t <= period[1]: #check if the day is in the period 
-                        self.aps_program.apply()
-                    if self.t == period[1]: # If self.t is the end of the first period
-                        self.aps_program.time.pop(0) # will move to the next sampling period 
+        if self.aps_programs: 
+            for program in self.aps_programs.values():
+
+                if isinstance(program.time, list): # it is a cross-sectional study 
+                    if len(program.time) > 0: #if sampling periods list is not empty 
+                        period = program.time[0] #specify which period we will be sampling in 
+                        num_people_per_day = program.sampler.study_design_pars['num_people_captured'][0]//(period[1] - period[0])
+                        if self.t >= period[0] and self.t <= period[1]: #check if the day is in the period 
+                            people_to_test, test_results = program.apply(num_people = num_people_per_day)
+                            #print(people_to_test)
+                            program.results.store_results(self.t, people_to_test, test_results)
+                        if self.t == period[1]: # If self.t is the end of the first period
+                            program.time.pop(0) # will move to the next sampling period 
+                            program.sampler.study_design_pars['num_people_captured'].pop(0)
             
-            else: # It's a longitduinal study 
-                if self.t % self.aps_program.time == 0: # so its a multiple of the interval, we want to test at this day 
-                    self.aps_program.apply()
+                else: # It's a longitudinal study 
+                    if self.t % program.time == 0: # so its a multiple of the interval, we want to test at this day 
+                        people_to_test, test_results = program.apply()
+                        program.results.store_results(self.t, people_to_test, test_results)
+
+
 
 
         # if this is a day we want to test on then apply 

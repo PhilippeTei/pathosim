@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from population_sampling_pars import sample_frame_mapping
+from pathosim.population_sampling_pars import sample_frame_mapping
 
 
 class active_population_sampling_program:
@@ -8,12 +8,13 @@ class active_population_sampling_program:
     Results class not fully funcitoning for this class.  
     '''
     
-    def __init__(self, people, test, study_design_pars, sample_frame, sample_frame_pars = None): 
+    def __init__(self, people, test, study_design_pars, sample_frame, program_name, sample_frame_pars = None): 
         '''
         Initializes an active population sampling object to run in a simulation. 
         '''
         self.people = people 
         self.test = test
+        self.program_name = program_name
         self.sampler = Sampler(people, study_design_pars, sample_frame, sample_frame_pars)
         self.results = Results()
 
@@ -335,14 +336,29 @@ class Results():
         Store the test results for multiple people on a given day.
 
         Args:
+            #program_name (str): The name of the surveillance program.
             day (int): The day of the simulation.
             people_indices (list): A list of person indices.
             test_results (list): A list of test results corresponding to the people indices.
+
+        if day not in self.test_results:
+            self.test_results[day] = {}
+
+        if program_name not in self.test_results[day]:
+            self.test_results[day][program_name] = {}
+
+        for person_index, test_result in zip(people_indices, test_results):
+            if person_index not in self.test_results[day][program_name]:
+                self.test_results[day][program_name][person_index] = []
+            self.test_results[day][program_name][person_index].append(test_result)
         """
+        
         for person_index, test_result in zip(people_indices, test_results):
             if person_index not in self.test_results:
                 self.test_results[person_index] = []
             self.test_results[person_index].append((day, test_result))
+ 
+
 
     def get_results(self, person_index):
         """
