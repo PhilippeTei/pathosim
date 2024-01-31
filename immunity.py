@@ -97,31 +97,38 @@ def update_imm(people, inds, pathogen, min_imm, max_imm, days_to_min, days_to_ma
     '''
     Step imm levels forward in time (for pathogens using the generalized immunity system)
     '''  
-    people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['decay_start_date'][pathogen],  people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people.t, people['growth_start_date'][pathogen],  people['curr_min'][pathogen],  people.imm_level[pathogen],inds,min_imm[pathogen], max_imm[pathogen],days_to_min[pathogen],days_to_max[pathogen])
+    people.imm_level[pathogen],people['curr_min'][pathogen] = update_imm_nb(people['p_dead'][pathogen], people['date_p_recovered'][pathogen], people['date_p_dead'][pathogen], people.t_peak_imm[pathogen], people.t_min_imm[pathogen], people['p_exposed'][pathogen], people.t, people['date_p_exposed'][pathogen],  people['curr_min'][pathogen],people['p_recovered'][pathogen],  people.imm_level[pathogen],inds,min_imm, max_imm,days_to_min,days_to_max)
     return
 
  
 @nb.njit()
-def update_imm_nb(people_dead,decay_start_date,  people_t_peak, people_t_min, t, growth_start_date, people_curr_min, people_imm_level, inds, min_imm, max_imm, days_to_min, days_to_max):
+def update_imm_nb(people_dead, people_date_rec, people_date_dead, people_t_peak, people_t_min, people_exposed, t, people_date_exposed, people_curr_min, people_recovered, people_imm_level, inds, min_imm, max_imm, days_to_min, days_to_max):
 
     for i in inds:    
         if people_dead[i]:
             continue
-             
-        rec_or_dead_date = decay_start_date[i] 
-        if (people_t_peak[i] - t) > 0:
-            x = t - growth_start_date[i]
-            people_imm_level[i] = immunity_growth_function(x, people_curr_min[i], max_imm[i], days_to_max[i]) #if previously infected, immunity starts at the min value 
 
+        if not np.isnan(people_date_rec[i]):
+             rec_or_dead_date =  people_date_rec[i]  
+        else:
+             rec_or_dead_date =  people_date_dead[i]  
+
+
+        if (people_t_peak[i] - t) > 0 and people_exposed[i] == True:
+            x = t - people_date_exposed[i]
              
-        elif (people_t_peak[i] - t) <= 0 and rec_or_dead_date > t: #if between peak and recovered
-            people_curr_min[i] = min_imm[i]
+            people_imm_level[i] = immunity_growth_function(x, people_curr_min[i], max_imm, days_to_max) #if previously infected, immunity starts at the min value 
+
+
+
+        elif (people_t_peak[i] - t) <= 0 and people_exposed[i] == True and rec_or_dead_date > t: #if between peak and recovered
+            people_curr_min[i] = min_imm
             continue
 
-        elif (people_t_min[i] - t) > 0 and (people_t_peak[i] - t) <= 0  and rec_or_dead_date <= t:
+        elif (people_t_min[i] - t) > 0 and (people_t_peak[i] - t) <= 0  and rec_or_dead_date <= t and people_recovered[i] == True:
             
             x = t - rec_or_dead_date
-            people_imm_level[i] = immunity_decay_function(x, min_imm[i], max_imm[i], days_to_min[i])
+            people_imm_level[i] = immunity_decay_function(x, min_imm, max_imm, days_to_min)
             people_curr_min[i] = people_imm_level[i]  
 
     return people_imm_level, people_curr_min
@@ -141,19 +148,35 @@ def validate_imm(i, pathogen, people, mini, maxi, rec_dead_date):
         assert abs(people.imm_level[pathogen, i] - maxi) < 0.01
          
 
-def update_IgG(people, pathogen):
+def update_IgG(people, indices, ratio, b, prev_IgG, t):
     '''
     Step IgG levels forward in time 
     ''' 
-    conversion_factor = 69.13 #slope
-    slope_adjustment = -268.62 
-    #error_range = (0.14, 2.42) From the upper and lower bounds of the trendline
-    error_range = (0.14, 0.42)
-    inds_alive = cvu.false(people.dead)
-    inds_with_nabs = inds_alive[cvu.true(people.nab[pathogen, inds_alive])]
-    error_values = np.random.uniform(error_range[0], error_range[1], size=len(inds_with_nabs))
-    people['IgG_level'][inds_with_nabs] = people['nab'][0][inds_with_nabs] * conversion_factor * error_values - slope_adjustment
 
+    mask = (prev_IgG == 0) & (people['nab'][0, indices] > 0)
+    num_to_initialize = np.count_nonzero(mask)
+
+    if num_to_initialize > 0:
+        # Initialize IgG using uniform distribution for selected indices
+        initialized_indices = indices[mask]
+        #people['IgG_level'][initialized_indices] = np.random.uniform(40.63, 162.5, num_to_initialize)
+        people['IgG_level'][initialized_indices] = np.random.uniform(162, 162.5, num_to_initialize)
+        #average_initialized_IgG = np.mean(people['IgG_level'][initialized_indices])
+        #print("Average initialized IgG:", average_initialized_IgG)
+
+    
+    # Update IgG using the formula for all other indices
+    updated_indices = indices[~mask]
+    if len(updated_indices) > 0:
+        ratio_mask = np.isin(indices, updated_indices)
+        updated_ratio = ratio[ratio_mask]  # Select ratio values for updated indices
+        curr_IgG = people['IgG_level'][updated_indices]
+        people['IgG_level'][updated_indices] = (updated_ratio * (curr_IgG - b)) + b
+        #average_updated_IgG = np.mean(people['IgG_level'][updated_indices])
+        #print("Average updated IgG:", average_updated_IgG)
+
+        #print(people['IgG_level'][updated_indices])
+    
 
 def calc_VE(nab, ax, pars):
     '''

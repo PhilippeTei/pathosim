@@ -63,8 +63,7 @@ class PeopleMeta(sc.prettyobj):
             'income',           # Int
             'cons_days_in_quar',    # Int
             'cons_days_neg_rat',    # Int
-            'is_coinfected',
-            'test_pos_path'
+            'is_coinfected'
         ]
 
         # Set the states that a person can be in: these are all booleans per person -- used in people.py

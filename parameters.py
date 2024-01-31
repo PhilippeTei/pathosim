@@ -54,11 +54,11 @@ def make_pars(version=None, **kwargs):
 
     #------------------------------------------------------------------------------------------#
     #Pathogen-pathogen interaction
-    pars['Mtrans']= None # Mtrans[i,j]=P(transmit Pi | co–infected with Pj) / P(transmit Pi at baseline)
-    pars['Miimm'] = None # P(infection with Pi | co–infected with Pj) / P(infection with Pi at baseline)
+    pars['Mtrans']= None # Mtrans[i,j]=P(transmit Pi | coï¿½infected with Pj) / P(transmit Pi at baseline)
+    pars['Miimm'] = None # P(infection with Pi | coï¿½infected with Pj) / P(infection with Pi at baseline)
     pars['Mcimm'] = None # contribution of current immunity to Pj to immunity to Pi
-    pars['Mdur'] =  None # (duration of Pi | co–infected with Pj) / (duration of Pi at baseline)
-    pars['Msev'] =  None # (severity of Pi | co–infected with Pj) / (severity of Pi at baseline)
+    pars['Mdur'] =  None # (duration of Pi | coï¿½infected with Pj) / (duration of Pi at baseline)
+    pars['Msev'] =  None # (severity of Pi | coï¿½infected with Pj) / (severity of Pi at baseline)
    
     #--------------------------- POPULATION & CONTACTS PARAMETERS------------------------------#
     # Population parameters
@@ -136,7 +136,9 @@ def make_pars(version=None, **kwargs):
     pars['vaccine_pars'] = {} # Vaccines that are being used; populated during initialization
     pars['vaccine_map']  = {} #Reverse mapping from number to vaccine key 
       
-
+    # For active surveillance programs
+    pars['active_surveillance_pars'] = [] #Dictionary to create and active population surveillance object in the simulation 
+    
     # Update with any supplied parameter values and generate things that need to be generated
     pars.update(kwargs)
     reset_layer_pars(pars)

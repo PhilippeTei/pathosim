@@ -76,6 +76,9 @@ class People(cvb.BasePeople):
         self.init_contacts() # Initialize the contacts
         self.infection_log = [] # Record of infections - keys for ['source','target','date','layer']
         self.sim = None
+        
+        #For IgG conversion error, the factor to multiply the base slope by
+        self.IgG_conversion_slope =  np.random.uniform(0.14, 2.42)
 
         variantNums = []
         for p in self.pars['pathogens']:
