@@ -21,7 +21,8 @@ sample_frame_mapping = {
         'donor_breakdown_per_interval' : [0.000160, 0.0135, 0.0863, 0.265, 0.383, 0.208, 0.0419, 0.00264], 
         'sex_breakdown' : {'male' : 0, 'female' : 1},
         'cohort_size' : 370155,
-        'actual_pop_size' : 8566164
+        'actual_pop_size' : 8566164, 
+        'num_donors_per_day' : 370155//365
 
     },
     
@@ -36,6 +37,13 @@ sample_frame_mapping = {
         'actual_pop_size' : 5000000 #BC population size 
         #insert drop out rate 
 
+    },
+
+    'random' : {
+        'age_intervals' : [(0, 50), (51, 100)], 
+        'donor_breakdown_per_interval' : [0.5, 0.5],
+        'sex_breakdown' : {'male' : 0.49, 'female' : 0.51},
+        'num_donors_per_day' : 100000
     }
 
 
