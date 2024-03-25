@@ -778,6 +778,7 @@ class Sim(cvb.BaseSim):
             raise AlreadyRunError('Simulation already complete (call sim.initialize() to re-run)')
 
         t = self.t 
+         
         # If it's the first timestep, infect people
         #if t == 0:
             #self.init_infections(verbose=False)
@@ -792,7 +793,7 @@ class Sim(cvb.BaseSim):
          
          
         people.update_states_pre(t=t) # Update the state of everyone and count the flows. This isn't infecting people nor updating their SEIR's. The date of infection seems to be pre-assigned. 
-        #For every pathogen, import pathosims, and import variants
+        #For every pathogen, import pathogens, and import variants
         for current_pathogen in range(len(self.pathogens)):
             # Randomly infect some people (imported infections)
             if self.pathogens[current_pathogen].n_imports:  
@@ -976,7 +977,7 @@ class Sim(cvb.BaseSim):
                     cvimm.update_nab(people, inds=has_nabs, pathogen = current_pathogen)
                 cvimm.update_IgG(people, current_pathogen)
             else:
-                has_imm = np.where(people.imm_level[current_pathogen] > 0)
+                has_imm = np.where(people['imm_peak'][current_pathogen] > 0)
                 if len(has_imm): 
                     cvimm.update_imm(people, has_imm[0], current_pathogen, self.people['imm_min'],  self.people['imm_peak'],  self.people['decay_rate'], self.people['growth_rate'])
         
