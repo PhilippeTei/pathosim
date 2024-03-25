@@ -247,7 +247,9 @@ def check_immunity(people, variant, pathogen):
 
     date_rec = people.date_p_recovered[pathogen]  # Date recovered
     is_vacc = cvu.true(people.vaccinated)  # Vaccinated
+
     vacc_source = people.vaccine_source[is_vacc]
+     
 
     was_inf = cvu.true((people.t >= people.date_p_recovered[pathogen])& (people.dead == False))  # Had a previous exposure, now recovered
     was_inf_same = cvu.true((people.p_recovered_variant[pathogen] == variant) & (people.t >= date_rec) & (people.dead== False))  # Had a previous exposure to the same variant, now recovered
