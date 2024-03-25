@@ -437,7 +437,7 @@ def get_default_plots(which='default', kind='sim', sim=None):
     # Default plots -- different for sims and scenarios
     if which in ['none', 'default', 'multi-pathogen']:
 
-        if is_sim and which != 'multi-pathogen':
+        if is_sim and which != ('multi-pathogen' or 'multi-pathogen-simple'):
             plots = sc.odict({
                 'Total counts': [
                     'cum_infections',
@@ -472,6 +472,19 @@ def get_default_plots(which='default', kind='sim', sim=None):
                 ], 
                 'Multi-pathogen': [
                     'co-infections'
+                ],
+            })
+
+        elif which == 'multi-pathogen-simple':
+              plots = sc.odict({
+                'New Infections & co-infections': [
+                    'new_infections' 
+                ], 
+                'New co-infections': [
+                    'co-infections'
+                ],
+                'Cumulative deaths': [ 
+                    'cum_deaths', 
                 ],
             })
         else: # pragma: no cover

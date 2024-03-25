@@ -260,14 +260,14 @@ def title_grid_legend(ax, title, grid, commaticks, setylim, legend_args, show_ar
         labels  = [labels[u]  for u in unique_inds]
 
         # Actually make legend
-        ax.legend(handles=handles, labels=labels, **legend_args)
+        ax.legend(handles=handles, labels=labels, prop={'weight':'bold'}, **legend_args)
 
     # If we removed it from the legend_args dict, put it back now
     if popped:
         legend_args['show_legend'] = show_legend
 
     # Set the title, gridlines, and color
-    ax.set_title(title)
+    ax.set_title(title, fontweight='bold')
 
     # Set the y axis style
     if setylim and ax.yaxis.get_scale() != 'log':
@@ -282,8 +282,9 @@ def title_grid_legend(ax, title, grid, commaticks, setylim, legend_args, show_ar
         lastrow = ax.get_subplotspec().is_last_row()
         if not lastrow:
             for label in ax.get_xticklabels(which="both"):
+                label.set_fontweight('bold')
                 label.set_visible(False)
-            ax.set_xlabel('')
+            ax.set_xlabel('', fontweight='bold')
 
     return
 
@@ -397,6 +398,9 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
                             label = set_line_options(labels, f"{sim.pathogens[p].label}: reskey", resnum, res.name)  # Choose the label
                             if res.low is not None and res.high is not None:
                                 ax.fill_between(res_t, res.low, res.high, color=color, **args.fill)  # Create the uncertainty bound
+
+                            
+                            ax.set_facecolor("white")
                             ax.plot(res_t, res.values, label=label, **args.plot, c=color)  # Actually plot the sim!
                     else:
                         if reskey in variant_keys: 
@@ -415,23 +419,29 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
                                 # Plotting
                                 if res.low is not None and res.high is not None:
                                     ax.fill_between(res_t, res.low[variant,:], res.high[variant,:], color=color, **args.fill)  # Create the uncertainty bound
+
+                                ax.set_facecolor("white")
                                 ax.plot(res_t, res.values[variant,:], label=label, **args.plot, c=color)  # Actually plot the sim!
+                            
                         else: 
                             res = sim.results[p][reskey] 
                             if p == 0:
                                 color = set_line_options(colors, f"{sim.pathogens[p].label}: reskey", resnum, res.color)  # Choose the color
-                                label = set_line_options(labels, f"{sim.pathogens[p].label}: reskey", resnum, f'{sim.pathogens[p].label}: {res.name}')  # Choose the label
+                                label = set_line_options(labels, f"{sim.pathogens[p].label}: reskey", resnum, f'{sim.pathogens[p].label}')  # Choose the label
                             else: 
                                 randomcol = random.randrange(0, 2**24)  
                                 hex_color = hex(randomcol) 
                                 std_color = "#" + hex_color[2:]
 
                                 color = set_line_options(colors, f"{sim.pathogens[p].label}: reskey", resnum, std_color)  # Choose the color
-                                label = set_line_options(labels, f"{sim.pathogens[p].label}: reskey", resnum, f'{sim.pathogens[p].label}: {res.name}')  # Choose the label
+                                label = set_line_options(labels, f"{sim.pathogens[p].label}: reskey", resnum, f'{sim.pathogens[p].label}')  # Choose the label
 
                             if res.low is not None and res.high is not None:
                                 ax.fill_between(res_t, res.low, res.high, color=color, **args.fill)  # Create the uncertainty bound
+                                 
+                            ax.set_facecolor("white")  
                             ax.plot(res_t, res.values, label=label, **args.plot, c=color)  # Actually plot the sim!
+                           
                     if args.show['data']:
                         plot_data(sim, ax, reskey, args.scatter, color=color)  # Plot the data
                     if args.show['ticks']:
@@ -439,7 +449,11 @@ def plot_sim(to_plot=None, sim=None, do_save=None, fig_path=None, fig_args=None,
             if args.show['interventions']:
                 plot_interventions(sim, ax) # Plot the interventions
             title_grid_legend(ax, title, grid, commaticks, setylim, args.legend, args.show) # Configure the title, grid, and legend
-
+            for label in ax.get_xticklabels(which="both"):
+                label.set_fontweight('bold')
+                
+            for label in ax.get_yticklabels(which="both"):
+                label.set_fontweight('bold')
         output = tidy_up(fig, figs, sep_figs, do_save, fig_path, do_show, args)
 
     return output
